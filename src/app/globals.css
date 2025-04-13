@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --van-dijle-blue: #254795;
+}
+
+.text-van-dijle {
+  color: var(--van-dijle-blue);
+}
+
+.bg-van-dijle {
+  background-color: var(--van-dijle-blue);
+}
+
+.clip-path-diagonal-bottom {
+  clip-path: polygon(0 0, 100% 0%, 100% 85%, 0% 100%);
+}
+
+/* Timeline özelleştirmeleri */
+.timeline-wrapper .vertical-timeline::before {
+  display: none;
+}
+
+.timeline-wrapper .vertical-timeline-element {
+  margin: 1em 0;
+}
+
+.timeline-wrapper .vertical-timeline-element-icon {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+}
+
+.timeline-wrapper .vertical-timeline--one-column .vertical-timeline-element-content {
+  margin-left: 45px;
+  padding: 0.75rem !important;
+  margin-bottom: 0.5rem;
+  box-shadow: none !important;
+  max-width: 400px !important;
+}
+
+.timeline-wrapper .vertical-timeline-element-content-arrow {
+  border-right: 7px solid #f3f4f6;
+  left: -17px;
+}
+
+.timeline-wrapper .vertical-timeline-element-content h3 {
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.timeline-wrapper .vertical-timeline-element-content p {
+  font-size: 0.75rem;
+  margin: 0;
+}

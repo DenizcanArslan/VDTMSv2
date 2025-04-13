@@ -1,0 +1,470 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id       String @id
+  username String @unique
+}
+
+model Driver {
+  id                      Int             @id @default(autoincrement())
+  name                    String
+  surname                 String
+  birthday                DateTime?
+  phoneNumber             String?
+  alphaPassNumber         String?         @unique
+  alphaPassExpireDate     DateTime?
+  driverLicenseExpireDate DateTime?
+  adr                     ADR
+  adrExpireDate           DateTime?       // ADR belgesi son kullanma tarihi
+  cargoCard               CargoCard?
+  cargoCardNumber         String?
+  cargoCardExpireDate     DateTime?       // Cargo Card son kullanma tarihi
+  tachographExpireDate    DateTime?
+  nickName                String          @unique
+  isActive                Boolean         @default(true)
+  holidays                DriverHoliday[]
+  slots                   PlanningSlot[]  // Driver'ın atandığı slot'lar
+}
+
+model Truck {
+  id                      Int             @id @default(autoincrement())
+  licensePlate            String          @unique
+  model                   String?
+  modelYear               Int?
+  chasisNumber            String?         @unique
+  genset                  GENSET
+  nickName                String          @unique
+  insuranceExpireDate     DateTime?
+  isActive                Boolean         @default(true)
+  transports              Transport[]
+  inspections             VehicleInspection[]
+  maintenances           VehicleMaintenance[]
+  transportLicense        TransportLicense?
+  slots                   PlanningSlot[]
+}
+
+model Trailer {
+  id                      Int             @id @default(autoincrement())
+  licensePlate            String          @unique
+  model                   String?         // optional
+  modelYear               Int?
+  chasisNumber            String?         @unique
+  genset                  GENSET
+  nickName                String          @unique
+  insuranceExpireDate     DateTime?
+  isActive                Boolean         @default(true)
+  transports              Transport[]
+  inspections             VehicleInspection[]
+  maintenances            VehicleMaintenance[]
+  currentParking          TrailerParking?
+}
+
+model Client {
+  id                Int                @id @default(autoincrement())
+  name              String
+  address           String?
+  vatNumber         String?
+  isActive          Boolean            @default(true)
+  emergencyContacts EmergencyContact[]
+  invoiceMails      InvoiceMail[]
+  transports        Transport[]
+  prices            Price[]
+}
+
+model Quay {
+  id                Int         @id @default(autoincrement())
+  name              String
+  quayNumber        Int?
+  isLoRo            LoRo?
+  address           String?
+  terminalFee       Decimal?    @db.Decimal(10, 2)
+  workingHoursStart String?
+  workingHoursEnd   String?
+  isActive          Boolean     @default(true)
+  dropOffTransports  Transport[] @relation("dropOffRelation")
+  pickUpTransports   Transport[] @relation("pickUpRelation")
+  defaultTar        String?
+  tarType           TarType?    @default(NONE)
+  tarPositiveColor  TarColor?   @default(GREEN)
+  tarNegativeColor  TarColor?   @default(RED)
+}
+
+// SIK GIDILEN LOKASYONLARINI KAYIT ETMEK ICIN OLUSTURULAN MODEL
+model FrequentLocation {
+  id           Int                    @id @default(autoincrement())
+  name         String
+  city         String?
+  country      String
+  postalCode   String?
+  km           Int
+  isActive     Boolean               @default(true)
+  prices       Price[]
+
+  transportDestinations TransportDestination[]
+}
+
+model TransportDestination {
+  id                Int              @id @default(autoincrement())
+  transport         Transport        @relation(fields: [transportId], references: [id])
+  transportId       Int
+  frequentLocation  FrequentLocation? @relation(fields: [frequentLocationId], references: [id])
+  frequentLocationId Int?
+  order            Int
+  destinationDate   DateTime         // Varış/yükleme tarihi
+  destinationTime   DateTime?        // Varış/yükleme saati (opsiyonel)
+  eta                 DateTime?
+  
+  @@unique([transportId, order])
+}
+
+model Transport {
+  id                        Int                         @id @default(autoincrement())
+  clientId                  Int
+  transportOrderNumber      String
+  bookingReference          String?
+  containerNumber           String?
+  loadingUnloadingReference String?
+  containerType             String?
+  genset                    GENSET
+  adr                       ADR                         @default(NO)
+  pickUpQuayId              Int?
+  dropOffQuayId             Int?
+  status                    TransportStatus             @default(ACTIVE) // ACTIVE, ON_HOLD
+  pickUpTar                 String?
+  dropOffTar                String?
+  pickUpTarPositive         Boolean                     @default(false)  // TAR durumu positif mi?
+  dropOffTarPositive        Boolean                     @default(false)  // TAR durumu positif mi?
+  type                      TransportType
+  order                     Int                         @default(0)
+  departureDate             DateTime?
+  returnDate                DateTime?
+  scrCpuStatus              ScrCpuStatus?               @default(SCRCPUNOK)  // SCRCPUNOK, SCROK, CPUOK
+  scrCpuColor               ScrCpuColor?                @default(RED)        // RED, ORANGE, GREEN
+  requiresScrCpu            Boolean                     @default(true)       // İstisna durumlar için
+  scrCpuAssignedToDriver    Boolean                     @default(false)      // SCR/CPU'nun sürücüye atanıp atanmadığı
+  hasTransportOrder         Boolean                     @default(false)      // Yeni alan
+  transportOrderReceivedAt  DateTime?                   // Transport order'ın geldiği tarih
+  currentStatus             TransportCurrentStatus      @default(PLANNED)
+  sentToDriver              Boolean                     @default(false)
+  pickUpEta                 DateTime?
+  dropOffEta                DateTime?
+  
+  // T1 belgesi için yeni alanlar
+  requiresT1                Boolean                     @default(false)      // T1 belgesi gerekiyor mu?
+  t1Received                Boolean                     @default(false)      // T1 belgesi alındı mı?
+  
+  // Kesme işlemleri için yeni alanlar
+  isCut                     Boolean                     @default(false)      // Kesilen transport mu?
+  originalTransportId       Int?                        // Eğer bu kesilen bir transport ise, orijinal transport ID'si
+  originalTransport         Transport?                  @relation("CutFromOriginal", fields: [originalTransportId], references: [id])
+  cutTransports             Transport[]                 @relation("CutFromOriginal") // Bu transporttan kesilen transportlar
+  cutInfo                   CutInfo?                    // Kesme bilgileri (one-to-one ilişki)
+  isRestored                Boolean                     @default(false)      // Restore edilmiş mi?
+  isDeleted                 Boolean                     @default(false)      // Silinmiş mi?
+
+  // Arşivleme için yeni alanlar
+  isArchived                Boolean                     @default(false)      // Transport arşivlenmiş mi?
+  archivedAt                DateTime?                   // Transport'un arşivlenme tarihi
+
+  // Relations
+  client               Client                 @relation(fields: [clientId], references: [id])
+  pickUpQuay           Quay?                  @relation("pickUpRelation", fields: [pickUpQuayId], references: [id])
+  dropOffQuay          Quay?                  @relation("dropOffRelation", fields: [dropOffQuayId], references: [id])
+  truck                Truck?                 @relation(fields: [truckId], references: [id]) // SANIRIM HATALI RELATION
+  trailer              Trailer?               @relation(fields: [trailerId], references: [id])
+  truckId              Int? // SANIRIM HATALI RELATION
+  trailerId            Int?
+  destinations         TransportDestination[]
+  slotAssignments      TransportSlot[]        // Yeni ilişki
+  notes                TransportNote[]
+}
+
+// Yeni model: Transport'un slot atamaları için
+model TransportSlot {
+  id          Int          @id @default(autoincrement())
+  transport   Transport    @relation(fields: [transportId], references: [id])
+  transportId Int
+  slot        PlanningSlot? @relation(fields: [slotId], references: [id])
+  slotId      Int?
+  date        DateTime
+  slotOrder   Int
+
+  @@index([transportId])
+  @@index([slotId])
+}
+
+model TransportLicense {
+  id            Int    @id @default(autoincrement())
+  licenseNumber String @unique
+
+  isActive  Boolean  @default(true)
+
+
+  // Relation to Truck
+  truckId Int?   @unique // Makes sure one license can only be assigned to one truck
+  truck   Truck? @relation(fields: [truckId], references: [id])
+}
+
+enum LoRo {
+  LO
+  RO
+  TBN
+}
+
+enum GENSET {
+  NO
+  YES
+}
+
+enum ADR {
+  NO
+  YES
+}
+
+enum CargoCard {
+  NO
+  YES
+}
+
+// Yeni model: Emergency Contact
+model EmergencyContact {
+  id          Int     @id @default(autoincrement())
+  phoneNumber String?
+  name        String?
+  clientId    Int
+  client      Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// Yeni model: Invoice Mail
+model InvoiceMail {
+  id       Int     @id @default(autoincrement())
+  email    String?
+  clientId Int
+  client   Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// ARABALARIN BELIRLI ARALIKLARLA YAPILAN KONTROLLERI ICIN OLUSTURULAN MODEL--- MAINTENANCEDAN FARKLIDIR
+model VehicleInspection {
+  id             Int      @id @default(autoincrement())
+  inspectionDate DateTime
+  notes          String?
+  cost           Decimal? @db.Decimal(10, 2)
+
+  // Truck veya Trailer referansı (biri null olacak)
+  truckId Int?
+  truck   Truck? @relation(fields: [truckId], references: [id])
+
+  trailerId Int?
+  trailer   Trailer? @relation(fields: [trailerId], references: [id])
+
+  isActive  Boolean  @default(true)
+  status    Status   @default(NOT_COMPLETED)
+}
+
+model VehicleMaintenance {
+  id              Int      @id @default(autoincrement())
+  maintenanceDate DateTime
+  notes           String?
+  cost            Decimal? @db.Decimal(10, 2)
+  isGensetMaintenance Boolean @default(false) // Genset bakımı olup olmadığını belirten alan
+
+  // Truck veya Trailer referansı (biri null olacak)
+  truckId Int?
+  truck   Truck? @relation(fields: [truckId], references: [id])
+
+  trailerId Int?
+  trailer   Trailer? @relation(fields: [trailerId], references: [id])
+
+
+  isActive  Boolean  @default(true)
+  status    Status   @default(NOT_COMPLETED)
+}
+
+enum HolidayReason {
+  ANNUAL_LEAVE // Yıllık izin
+  SICK_LEAVE // Hastalık izni
+  UNPAID_LEAVE // Ücretsiz izin
+  BEREAVEMENT_LEAVE // Ölüm izni
+  MARRIAGE_LEAVE // Evlilik izni
+  OTHER // Diğer
+}
+
+model DriverHoliday {
+  id        Int           @id @default(autoincrement())
+  startDate DateTime
+  endDate   DateTime
+  reason    HolidayReason // Tatil sebebi (zorunlu)
+  notes     String? // Ek notlar (reason OTHER olduğunda zorunlu)
+
+  // Driver ile ilişki
+  driverId Int
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+
+}
+
+// KONTROLLER VE MAINTENANCEDE KULLANILAN STATUS MODEL
+enum Status {
+  COMPLETED
+  NOT_COMPLETED
+}
+
+model PlanningSlot {
+  id              Int             @id @default(autoincrement())
+  date            DateTime
+  slotNumber      Int
+  order           Int             @default(0)
+  isActive        Boolean         @default(true)
+  driverStartNote String?         // Sürücünün işe başlama saati notu
+  transports      TransportSlot[]
+  driver          Driver?         @relation(fields: [driverId], references: [id])
+  driverId        Int?
+  truck           Truck?          @relation(fields: [truckId], references: [id]) // SANIRIM DOGRU RELATION
+  truckId         Int? // SANIRIM DOGRU RELATION
+
+  @@unique([date, order])
+}
+
+enum TransportStatus {
+  ACTIVE
+  ON_HOLD
+}
+
+model TransportNote {
+  id          String    @id @default(cuid())
+  content     String    @db.Text
+  color       String    // Örn: "RED", "YELLOW", "GREEN", "BLUE", "PURPLE"
+  transport   Transport @relation(fields: [transportId], references: [id], onDelete: Cascade)
+  transportId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([transportId])
+}
+
+enum TarType {
+  PICKUP
+  DROPOFF
+  BOTH
+  NONE
+}
+
+enum ScrCpuStatus {
+  SCRCPUNOK
+  SCROK
+  CPUOK
+}
+
+enum ScrCpuColor {
+  RED
+  ORANGE
+  GREEN
+}
+
+enum TransportCurrentStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CUT
+}
+
+// Yeni Price modeli
+model Price {
+  id              Int           @id @default(autoincrement())
+  client          Client        @relation(fields: [clientId], references: [id])
+  clientId        Int
+  isFixedPrice    Boolean       @default(false)
+  basePrice       Float         
+  dieselSurcharge Float?        
+  roadTax         Float?        
+  gensetPrice     Float?        
+  frequentLocation FrequentLocation @relation(fields: [frequentLocationId], references: [id])
+  frequentLocationId Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([clientId, frequentLocationId])
+}
+
+// Add the TransportType enum if it doesn't exist
+enum TransportType {
+  IMPORT
+  EXPORT
+  SHUNT
+}
+
+// Kesme lokasyonları
+model CutLocation {
+  id        Int      @id @default(autoincrement())
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  cutInfos  CutInfo[]
+  parkedTrailers TrailerParking[]
+}
+
+// Kesme bilgileri için model
+model CutInfo {
+  id              Int       @id @default(autoincrement())
+  transportId     Int       @unique // Transport ile one-to-one ilişki
+  cutType         String    // "TRAILER", "CONTAINER", "BOTH"
+  cutStartDate    DateTime  // Kesme işleminin başlangıç tarihi
+  cutEndDate      DateTime? // Kesme işleminin bitiş tarihi (planninge geri eklendiğinde doldurulur)
+  locationId      Int?
+  customLocation  String?
+  notes           String?
+  
+  // İlişkiler
+  transport       Transport @relation(fields: [transportId], references: [id])
+  location        CutLocation? @relation(fields: [locationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Kesme tipi enum
+enum CutType {
+  TRAILER
+  CONTAINER
+  BOTH
+}
+
+enum TarColor {
+  RED
+  ORANGE
+  YELLOW
+  GREEN
+  BLUE
+  PURPLE
+  TEAL
+  GRAY
+}
+
+model TrailerParking {
+  id        Int      @id @default(autoincrement())
+  trailer   Trailer  @relation(fields: [trailerId], references: [id], onDelete: Cascade) // Trailer silinirse bu kayıt da silinsin
+  trailerId Int      @unique // Bir trailer aynı anda sadece bir yerde park edilebilir
+  location  CutLocation @relation(fields: [locationId], references: [id]) // Burayı CutLocation olarak düzelttim
+  locationId Int
+  parkedAt  DateTime @default(now()) // Ne zaman park edildiği
+  notes     String?  // Ekstra notlar için alan
+
+  @@index([trailerId])
+  @@index([locationId])
+}
+
+
+
+
+
+
+

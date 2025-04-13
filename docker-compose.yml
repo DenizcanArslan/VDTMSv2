@@ -1,0 +1,17 @@
+services:
+  websocket:
+    build: ./websocket-server
+    container_name: transport-websocket
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      POSTGRES_USER: Denizcan
+      POSTGRES_PASSWORD: Denizcan07
+      POSTGRES_DB: transport
+      POSTGRES_HOST: host.docker.internal
+      POSTGRES_PORT: 5432
+      FRONTEND_URL: "http://192.168.1.143:3000,http://localhost:3000"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway" 
