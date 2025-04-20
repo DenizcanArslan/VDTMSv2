@@ -21,7 +21,7 @@ const TableSearch = () => {
 
   return (
     <form onSubmit={handleSubmit} className="w-full flex md:w-auto items-center  gap-2 text-xs rounded-full ring-[1.5px] ring-gray-300 px-2">
-      <Image src="/icons/search.png" width={14} height={14} />
+      <Image src="/icons/search.png" width={14} height={14} alt="search" />
       <input
         type="text"
         placeholder="Search..."

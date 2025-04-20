@@ -4,7 +4,7 @@ import { useSignIn } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
+import Image from "next/image";
 const LoginPage = () => {
   const { isLoaded, isSignedIn, user } = useUser();
   const { signIn, setActive } = useSignIn();
@@ -53,10 +53,12 @@ const LoginPage = () => {
         <div className="w-full space-y-6 rounded-2xl bg-white px-4 py-10 shadow-md ring-1 ring-black/5 sm:w-96 sm:px-8">
           <header className="text-center">
             <div className="flex justify-center mb-4">
-              <img
+              <Image
                 src="/logo/vd-transport-logo.png"
                 alt="Van Dijle Logo"
                 className="h-15 w-auto"
+                width={1000}
+                height={1000}
               />
             </div>
           </header>
@@ -100,10 +102,12 @@ const LoginPage = () => {
 
       {/* Right side with image */}
       <div className="hidden md:flex h-screen items-center justify-center bg-zinc-950 clip-path-diagonal-bottom">
-        <img
+          <Image
           src="/img/truck-image.jpg"
           alt="Transport Management"
           className="h-full w-full object-cover"
+          width={1000}
+          height={1000}
         />
       </div>
     </div>

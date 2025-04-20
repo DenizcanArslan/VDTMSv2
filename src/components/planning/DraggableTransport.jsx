@@ -2361,7 +2361,7 @@ export default function DraggableTransport({
               </div>
               <p className="text-base mb-4 text-center">
                 This transport is {transport.currentStatus === 'ONGOING' ? 'ongoing' : 'completed'}. 
-                Unassigning it will reset all ETAs and remove it from the driver's assignment.
+                Unassigning it will reset all ETAs and remove it from the drivers assignment.
               </p>
               <p className="text-sm text-center text-gray-500 mb-6">
                 Are you sure you want to proceed?

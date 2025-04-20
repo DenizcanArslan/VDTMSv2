@@ -46,7 +46,7 @@ export default function SendToDriverModal({ isOpen, onClose, onConfirm, transpor
             <div className="mt-6 bg-yellow-50 p-4 rounded-md">
               <p className="text-sm text-yellow-700">
                 Are you sure you want to send this transport to the driver? 
-                This will change the transport status to "Ongoing".
+                This will change the transport status to Ongoing.
               </p>
             </div>
           </div>

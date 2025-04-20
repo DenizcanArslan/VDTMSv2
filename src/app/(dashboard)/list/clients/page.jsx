@@ -33,7 +33,7 @@ const renderRow = (item, role) => (
       <div className="flex items-center gap-3 justify-center">
         <Link href={`/list/clients/${item.id}`}>
           <button className="w-7 h-7 flex items-center justify-center rounded-full bg-green-400 hover:bg-dijle-light-blue transition duration-200">
-            <Image src={"/icons/view.svg"} width={16} height={16} />
+            <Image src={"/icons/view.svg"} width={16} height={16} alt="view" />
           </button>
         </Link>
         {role === "admin" && <FormModal table="client" type="update" data={item} />}
@@ -106,7 +106,7 @@ const columns = [
             <TableSearch />
             <div className="flex items-center gap-5">
               <button className="w-8 h-8 flex items-center justify-center rounded-full border-dijle-light-blue border-2 hover:border-dijle-dark-blue transition-colors duration-300">
-                <Image src={"/icons/filter.png"} width={14} height={14} />
+                <Image src={"/icons/filter.png"} width={14} height={14} alt="filter" />
               </button>
               {role === "admin" && <FormModal table="client" type="create" />}
             </div>

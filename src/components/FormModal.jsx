@@ -247,6 +247,7 @@ const FormModal = ({ table, type, data, id, onSuccess, onSubmit }) => {
           src={`/icons/${type}.${type === "create" ? "png" : "svg"}`}
           width={16}
           height={16}
+          alt={type}
         />
       </button>
       {open && (
@@ -257,7 +258,7 @@ const FormModal = ({ table, type, data, id, onSuccess, onSubmit }) => {
               className="absolute top-4 right-4 cursor-pointer"
               onClick={() => setOpen(!open)}
             >
-              <Image src={"/icons/close.png"} height={14} width={14} />
+              <Image src={"/icons/close.png"} height={14} width={14} alt="close" />
             </div>
           </div>
         </div>

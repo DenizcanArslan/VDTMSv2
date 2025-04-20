@@ -35,7 +35,7 @@ const SingleHolidayPage = async ({ params }) => {
               Holiday Information
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Details about the driver's holiday.
+              Details about the drivers holiday.
             </p>
           </div>
           <div className="border-t border-gray-200">

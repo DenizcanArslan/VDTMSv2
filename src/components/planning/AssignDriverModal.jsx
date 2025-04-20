@@ -144,7 +144,7 @@ const AssignDriverModal = ({ isOpen, onClose, handleConfirm, selectedTruck, slot
 
             <div className="bg-amber-50 p-4 rounded-lg mt-4">
               <p className="text-amber-800">
-                Are you sure you want to send this transport to the driver? This will change the transport status to "Busy".
+                Are you sure you want to send this transport to the driver? This will change the transport status to Busy.
               </p>
             </div>
           </div>

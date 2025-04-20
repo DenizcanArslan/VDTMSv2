@@ -25,7 +25,7 @@ const UnassignDriverConfirmModal = ({ isOpen, onClose, onConfirm }) => {
             <ul className="list-disc list-inside text-gray-600 pl-4 space-y-2">
               <li>Unassign it from the current driver</li>
               <li>Reset all ETA information</li>
-              <li>Change status back to "Planned"</li>
+              <li>Change status back to Planned</li>
             </ul>
 
             <div className="bg-amber-50 p-4 rounded-lg mt-4">

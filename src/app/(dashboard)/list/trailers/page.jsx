@@ -7,7 +7,7 @@ import StatusButton from "@/components/StatusButton";
 
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import { role } from "@/lib/utils";
+import { getUserAuth } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -30,7 +30,7 @@ const columns = [
 ];
 
 //To render table's head and body
-const renderRow = (item) => (
+const renderRow = (item, userRole) => (
   <tr
     key={item.id}
     className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-dijle-dark-blue hover:text-white transition-colors duration-200"
@@ -44,30 +44,31 @@ const renderRow = (item) => (
       <div className="flex items-center gap-3 justify-center">
         <Link href={`/list/trailers/${item.id}`}>
           <button className="w-7 h-7 flex items-center justify-center rounded-full bg-green-400 hover:bg-dijle-light-blue transition duration-200">
-            <Image src={"/icons/view.svg"} width={16} height={16} />
+            <Image src={"/icons/view.svg"} width={16} height={16} alt="view" />
           </button>
         </Link>
     
-        { role ==="admin" && (<FormModal table="trailer" type="update" data={item}/>)}
+        {userRole === "admin" && (<FormModal table="trailer" type="update" data={item}/>)}
 
-        { role ==="admin" && <StatusButton id={item.id} isActive={item.isActive} table="trailer" />}
+        {userRole === "admin" && <StatusButton id={item.id} isActive={item.isActive} table="trailer" />}
 
       </div>
     </td>
   </tr>
 );
 
-const TrailersListPage =async ({searchParams}) => {
+const TrailersListPage = async ({searchParams}) => {
+  // Kullanıcı rolünü al
+  const { role } = await getUserAuth();
 
-
-  const {page, ...queryParams}=searchParams;
+  const {page, ...queryParams} = searchParams;
 
   console.log(searchParams);
   
-  const p=page ? parseInt(page) :1; //URL'de page degeri varsa bunu integer'a cevirip p degiskeninde saklar eger yoksa degeri 1 olarak atar
+  const p = page ? parseInt(page) : 1; //URL'de page degeri varsa bunu integer'a cevirip p degiskeninde saklar eger yoksa degeri 1 olarak atar
   
    // URL PARAMS CONDITION
-  const query={};
+  const query = {};
   
   
   if (queryParams) {
@@ -138,7 +139,7 @@ const TrailersListPage =async ({searchParams}) => {
 
       {/* LIST */}
       <div>
-        <Table columns={columns} renderRow={renderRow} data={data} />
+        <Table columns={columns} renderRow={(item) => renderRow(item, role)} data={data} />
       </div>
 
       {/*PAGINATION */}

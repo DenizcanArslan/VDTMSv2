@@ -20,7 +20,7 @@ const ChangeTruckConfirmModal = ({ isOpen, onClose, onConfirm }) => {
             <ul className="mt-2 space-y-2 text-gray-600">
               <li>• Unassign all active transports from the current truck</li>
               <li>• Reset all ETA information</li>
-              <li>• Change transport status back to "Planned"</li>
+              <li>• Change transport status back to Planned</li>
             </ul>
             <p className="mt-4 text-orange-600 bg-orange-50 p-2 rounded">
               Are you sure you want to continue?
