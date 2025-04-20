@@ -79,7 +79,7 @@ const SingleTruckPage = async ({ params }) => {
                 </div>
                 <div className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                   {truck.transportLicense 
-                    ? `${truck.transportLicense.licenseNumber} ${!truck.transportLicense.isActive ? '(Inactive)' : ''}`
+                    ? `${truck.transportLicense.licenseNumber} ${!truck.transportLicense.isActive ? "(Inactive)" : ""}`
                     : "No License Assigned"
                   }
                 </div>
@@ -87,7 +87,7 @@ const SingleTruckPage = async ({ params }) => {
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <div className="text-sm font-medium text-gray-500">Insurance Expire Date:</div>
                 <div className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {truck.insuranceExpireDate ? new Date(truck.insuranceExpireDate).toLocaleDateString('tr-TR') : "-"}
+                  {truck.insuranceExpireDate ? new Date(truck.insuranceExpireDate).toLocaleDateString("tr-TR") : "-"}
                 </div>
               </div>
             </dl>

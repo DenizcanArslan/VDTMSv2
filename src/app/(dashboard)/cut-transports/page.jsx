@@ -57,7 +57,7 @@ export default function CutTransportsPage() {
     fetchLocations();
     fetchTrucks();
     fetchTrailers();
-  }, []);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCutTransports = async (skipLoading = false) => {
     if (!skipLoading) {
