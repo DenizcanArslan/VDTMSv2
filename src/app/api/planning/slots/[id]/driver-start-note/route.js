@@ -1,60 +1,8 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { sendSocketNotification } from '@/lib/websocket';
 
-// Socket.IO bildirim fonksiyonu
-const sendSocketNotification = async (event, data) => {
-  try {
-    // Socket.IO server URL'ini localhost olarak değiştirdik (güvenli fallback)
-    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
-    
-    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
-      dataType: typeof data,
-      slotId: data.id,
-      driverStartNote: data.driverStartNote
-    });
-    
-    // Bağlantı zaman aşımını önlemek için timeout değerini azaltalım
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 saniye zaman aşımı
-    
-    const response = await fetch(socketServerUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        event,
-        data,
-      }),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId); // Zaman aşımını temizle
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
-      return;
-    }
-    
-    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`, {
-      event,
-      slotId: data.id,
-      driverStartNote: data.driverStartNote
-    });
-  } catch (error) {
-    // AbortError kontrolü - zaman aşımı hatası için özel mesaj
-    if (error.name === 'AbortError') {
-      console.error('Socket.IO bildirimi zaman aşımına uğradı. Socket.IO sunucusu çalışıyor mu?');
-    } else {
-      console.error('Socket.IO bildirim hatası:', error);
-      console.error('Hata detayları:', error.stack);
-    }
-    
-    // Hatayı yutuyoruz, uygulama çalışmaya devam etmeli
-    console.log('Socket.IO bildirimi başarısız oldu ancak API işlemine devam ediliyor');
-  }
-};
+export const dynamic = 'force-dynamic';
 
 export async function PUT(request, { params }) {
   try {
@@ -86,7 +34,7 @@ export async function PUT(request, { params }) {
     // Socket.IO bildirimi gönder
     console.log('Driver start note güncelleme bildirimi hazırlanıyor...');
     try {
-      // Socket.IO bildirimi göndermeyi dene
+      // Socket.IO bildirimi göndermeyi dene - shared implementation kullanarak
       await sendSocketNotification('slot:update', {
         ...updatedSlot,
         date: date,
