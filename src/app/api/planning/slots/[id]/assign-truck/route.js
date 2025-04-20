@@ -1,12 +1,12 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
       slotId: data.id,
       truckId: data.truckId
@@ -25,17 +25,17 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}`, {
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`, {
       event,
       slotId: data.id,
       truckId: data.truckId
     });
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
     console.error('Hata detayları:', error.stack);
   }
 };
@@ -68,16 +68,16 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // WebSocket bildirimi gönder - sadece tek bir bildirim gönder
+    // Socket.IO bildirimi gönder - sadece tek bir bildirim gönder
     console.log('Truck atama bildirimi hazırlanıyor...');
     try {
-      await sendWebSocketNotification('truck:assign', updatedSlot);
+      await sendSocketNotification('truck:assign', updatedSlot);
       console.log('Truck atama bildirimi başarıyla gönderildi');
       
       // Artık sadece tek bildirim gönderiyoruz - slot:update bildirimini kaldırdık
     } catch (wsError) {
       console.error('Truck atama bildirimi gönderilirken hata:', wsError);
-      // WebSocket bildirimi başarısız olsa bile, API yanıtını döndürmeye devam et
+      // Socket.IO bildirimi başarısız olsa bile, API yanıtını döndürmeye devam et
     }
 
     return NextResponse.json(updatedSlot);

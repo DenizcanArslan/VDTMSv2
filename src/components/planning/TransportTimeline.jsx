@@ -52,12 +52,12 @@ export default function TransportTimeline({ isOpen, onClose, transport }) {
       );
       setDropOffEta(formatDate(transport.dropOffEta));
       
-      // Store the current transport ID for WebSocket filtering
+      // Store the current transport ID for Socket.IO filtering
       transportIdRef.current = transport.id;
     }
   }, [isOpen, transport]);
   
-  // Listen for real-time ETA updates via WebSocket
+  // Listen for real-time ETA updates via Socket.IO
   useEffect(() => {
     // Only set up listeners when the modal is open
     if (!isOpen || !transport) return;
@@ -98,7 +98,7 @@ export default function TransportTimeline({ isOpen, onClose, transport }) {
   
     };
     
-    // Set up WebSocket listeners
+    // Set up Socket.IO listeners
     const etaUpdateCleanup = on('transport:eta-update', handleEtaUpdate);
     const transportUpdateCleanup = on('transport:update', (data) => {
       // Only handle transport updates that include ETA changes

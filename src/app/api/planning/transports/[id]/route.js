@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 import { isGensetRequired } from '@/lib/constants/containerTypes';
 import { startOfDay, endOfDay } from "date-fns";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
     await fetch(socketServerUrl, {
       method: 'POST',
@@ -19,9 +19,9 @@ const sendWebSocketNotification = async (event, data) => {
       }),
     });
     
-    console.log(`WebSocket bildirimi gönderildi: ${event}`);
+    console.log(`Socket.IO bildirimi gönderildi: ${event}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
   }
 };
 
@@ -514,8 +514,8 @@ export async function PUT(request, { params }) {
       return updatedTransport;
     });
     
-    // WebSocket bildirimi gönder
-    await sendWebSocketNotification('transport:update', result);
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('transport:update', result);
     
     return NextResponse.json(result);
   } catch (error) {
@@ -578,7 +578,7 @@ export async function DELETE(request, { params }) {
       }
     });
 
-    // WebSocket bildirimi için transport verisini hazırla
+    // Socket.IO bildirimi için transport verisini hazırla
     const transportData = {
       id: transportId,
       transportOrderNumber: transport.transportOrderNumber,
@@ -588,12 +588,12 @@ export async function DELETE(request, { params }) {
       containerType: transport.containerType
     };
 
-    // WebSocket bildirimi gönder - transport:delete eventi ile
-    await sendWebSocketNotification('transport:delete', transportData);
-    console.log(`Transport silindi, WebSocket bildirimi gönderildi: ID=${transportId}, OrderNumber=${transport.transportOrderNumber}`);
+    // Socket.IO bildirimi gönder - transport:delete eventi ile
+    await sendSocketNotification('transport:delete', transportData);
+    console.log(`Transport silindi, Socket.IO bildirimi gönderildi: ID=${transportId}, OrderNumber=${transport.transportOrderNumber}`);
 
     // Ekstra olarak planning:update bildirimi de gönder, tüm planlama ekranlarının yenilenmesi için
-    await sendWebSocketNotification('planning:update', { action: 'transport-deleted', transportId });
+    await sendSocketNotification('planning:update', { action: 'transport-deleted', transportId });
     console.log(`Planning update bildirimi gönderildi: transport-deleted, ID=${transportId}`);
 
     return NextResponse.json({
@@ -647,9 +647,9 @@ export async function PATCH(request, { params }) {
       }
     });
 
-    // WebSocket bildirimi gönder
-    await sendWebSocketNotification('transport:update', updatedTransport);
-    console.log("TAR update notification sent via WebSocket");
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('transport:update', updatedTransport);
+    console.log("TAR update notification sent via Socket.IO");
 
     return NextResponse.json(updatedTransport);
   } catch (error) {

@@ -1,13 +1,13 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    // WebSocket server URL'ini localhost olarak değiştirdik (güvenli fallback)
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    // Socket.IO server URL'ini localhost olarak değiştirdik (güvenli fallback)
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
       slotId: data.id,
       driverStartNote: data.driverStartNote
@@ -33,11 +33,11 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}`, {
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`, {
       event,
       slotId: data.id,
       driverStartNote: data.driverStartNote
@@ -45,14 +45,14 @@ const sendWebSocketNotification = async (event, data) => {
   } catch (error) {
     // AbortError kontrolü - zaman aşımı hatası için özel mesaj
     if (error.name === 'AbortError') {
-      console.error('WebSocket bildirimi zaman aşımına uğradı. WebSocket sunucusu çalışıyor mu?');
+      console.error('Socket.IO bildirimi zaman aşımına uğradı. Socket.IO sunucusu çalışıyor mu?');
     } else {
-      console.error('WebSocket bildirim hatası:', error);
+      console.error('Socket.IO bildirim hatası:', error);
       console.error('Hata detayları:', error.stack);
     }
     
     // Hatayı yutuyoruz, uygulama çalışmaya devam etmeli
-    console.log('WebSocket bildirimi başarısız oldu ancak API işlemine devam ediliyor');
+    console.log('Socket.IO bildirimi başarısız oldu ancak API işlemine devam ediliyor');
   }
 };
 
@@ -83,11 +83,11 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // WebSocket bildirimi gönder
+    // Socket.IO bildirimi gönder
     console.log('Driver start note güncelleme bildirimi hazırlanıyor...');
     try {
-      // WebSocket bildirimi göndermeyi dene
-      await sendWebSocketNotification('slot:update', {
+      // Socket.IO bildirimi göndermeyi dene
+      await sendSocketNotification('slot:update', {
         ...updatedSlot,
         date: date,
         updateType: 'driver-start-note'
@@ -96,10 +96,10 @@ export async function PUT(request, { params }) {
     } catch (wsError) {
       console.error('Driver start note güncelleme bildirimi gönderilirken hata:', wsError);
       // Hata ayrıntılarını logla, ancak API'nin normal işleyişini engelleme
-      console.log('WebSocket bildirimi başarısız oldu, ancak API işlemine devam ediliyor');
+      console.log('Socket.IO bildirimi başarısız oldu, ancak API işlemine devam ediliyor');
     }
 
-    // WebSocket bildiriminin başarısız olmasından bağımsız olarak güncellenmiş veriyi dön
+    // Socket.IO bildiriminin başarısız olmasından bağımsız olarak güncellenmiş veriyi dön
     return NextResponse.json(updatedSlot);
   } catch (error) {
     console.error('Error updating driver start note:', error);

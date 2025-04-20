@@ -27,7 +27,7 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true
   },
-  transports: ['websocket', 'polling'],
+  transports: ['polling'],
   allowEIO3: true, // Socket.IO 2.x istemcileri için eski protokol desteği
 });
 
@@ -107,7 +107,7 @@ app.post('/api/notify', async (req, res) => {
       io.to(`${type}-updates`).emit(event, data);
     }
     
-    return res.json({ success: true, message: `WebSocket mesajı gönderildi: ${type}/${action}` });
+    return res.json({ success: true, message: `Socket.IO mesajı gönderildi: ${type}/${action}` });
   } catch (error) {
     console.error('API hatası:', error);
     return res.status(500).json({ success: false, message: `Hata: ${error.message}` });
@@ -122,5 +122,5 @@ app.get('/health', (req, res) => {
 // Sunucuyu başlat
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`WebSocket sunucusu port ${PORT} üzerinde çalışıyor`);
+  console.log(`Socket.IO sunucusu port ${PORT} üzerinde çalışıyor`);
 }); 

@@ -2,12 +2,12 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { TransportCurrentStatus } from "@prisma/client";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
       transportId: data.id,
       currentStatus: data.currentStatus,
@@ -27,16 +27,16 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}`, {
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`, {
       event,
       transportId: data.id
     });
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
     console.error('Hata detayları:', error.stack);
   }
 };
@@ -199,11 +199,11 @@ export async function PUT(request, { params }) {
       return updatedTransport;
     });
 
-    // Send WebSocket notification for transport status update
-    await sendWebSocketNotification('transport:status-update', result);
+    // Send Socket.IO notification for transport status update
+    await sendSocketNotification('transport:status-update', result);
     
     // Also send a general transport update to ensure all clients refresh their view
-    await sendWebSocketNotification('transport:update', result);
+    await sendSocketNotification('transport:update', result);
 
     return NextResponse.json(result);
   } catch (error) {

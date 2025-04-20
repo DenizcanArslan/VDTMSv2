@@ -1,12 +1,12 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
       transportId: data.id,
       hasPickUpEta: !!data.pickUpEta,
@@ -37,13 +37,13 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event} için transport ID: ${data.id}`);
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event} için transport ID: ${data.id}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
     console.error('Hata detayları:', error.stack);
   }
 };
@@ -89,7 +89,7 @@ export async function PUT(request, { params }) {
       };
     }
 
-    // Update the transport with all includes for websocket notification
+    // Update the transport with all includes for socket notification
     const updatedTransport = await prisma.transport.update({
       where: { id: parseInt(id) },
       data: updateData,
@@ -115,8 +115,8 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // Send WebSocket notification for ETA update - dedicated event
-    await sendWebSocketNotification('transport:eta-update', updatedTransport);
+    // Send Socket.IO notification for ETA update - dedicated event
+    await sendSocketNotification('transport:eta-update', updatedTransport);
     
     // Small delay to ensure clients process events in order
     await new Promise(resolve => setTimeout(resolve, 100));

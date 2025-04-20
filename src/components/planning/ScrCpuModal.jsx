@@ -23,7 +23,7 @@ export default function ScrCpuModal({ isOpen, onClose, transport, onUpdate }) {
     }
   }, [status]);
 
-  // Listen for WebSocket updates
+  // Listen for Socket.IO updates
   useEffect(() => {
     const handleTransportUpdate = (updatedTransport) => {
       if (updatedTransport.id === transport.id) {
@@ -52,7 +52,7 @@ export default function ScrCpuModal({ isOpen, onClose, transport, onUpdate }) {
 
       if (!response.ok) throw new Error('Update failed');
       
-      // Close modal on success - WebSocket will handle updating other clients
+      // Close modal on success - Socket.IO will handle updating other clients
       onClose();
       toast.success('SCR/CPU status updated successfully');
     } catch (error) {

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useSocket } from '@/context/SocketContext';
+import { FiWifi, FiWifiOff } from 'react-icons/fi';
 
 
 
@@ -135,6 +137,7 @@ const Menu = ({role}) => {
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
+  const { isConnected } = useSocket();
 
   const handleSignOut = async () => {
     await signOut();
@@ -222,6 +225,26 @@ const Menu = ({role}) => {
             </div>
           </div>
         ))}
+        
+        {/* Socket Connection Status */}
+        <div className="mt-2 pt-2 border-t border-gray-200">
+          <div className="hidden lg:flex items-center gap-1.5 text-gray-400 my-2">
+            <span className="text-xs font-medium">SOCKET STATUS</span>
+          </div>
+          <div className="flex items-center justify-center lg:justify-start text-gray-500 gap-2 px-1 md:px-1.5 lg:px-2 py-1.5 rounded-md">
+            <div className="flex items-center gap-1.5">
+              <div className={`${isConnected ? 'text-green-500' : 'text-red-500'}`}>
+                {isConnected ? <FiWifi size={16} /> : <FiWifiOff size={16} />}
+              </div>
+              <span className={`hidden lg:block text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isConnected ? 'Connected' : 'Disconnected'}
+              </span>
+              <span className={`block lg:hidden text-[8px] ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isConnected ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Logout Modal */}

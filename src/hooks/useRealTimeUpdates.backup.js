@@ -35,11 +35,11 @@ const useRealTimeUpdates = () => {
   useEffect(() => {
     // Socket bağlantısını kontrol et
     if (!socket || !isConnected) {
-      console.warn('⚠️ WebSocket bağlantısı kurulmadı, real-time güncellemeler alınamayacak!');
+      console.warn('⚠️ Socket.IO bağlantısı kurulmadı, real-time güncellemeler alınamayacak!');
       
       // Eğer socket yoksa, bir süre sonra tekrar dene
       const reconnectTimer = setTimeout(() => {
-        console.log('⚠️ WebSocket bağlantısı yeniden kurulmaya çalışılıyor...');
+        console.log('⚠️ Socket.IO bağlantısı yeniden kurulmaya çalışılıyor...');
         // Sayfayı zorla yeniden bağla
         window.location.reload();
       }, 30000); // 30 saniye sonra yeniden bağlanmayı dene
@@ -47,7 +47,7 @@ const useRealTimeUpdates = () => {
       return () => clearTimeout(reconnectTimer);
     }
     
-    console.log('✅ WebSocket bağlantısı hazır, real-time güncellemeleri dinlemeye başlıyor...');
+    console.log('✅ Socket.IO bağlantısı hazır, real-time güncellemeleri dinlemeye başlıyor...');
     console.log('📡 Socket ID:', socket.id);
     console.log('📡 Connected Status:', isConnected);
     

@@ -608,7 +608,7 @@ export const planningSlice = createSlice({
               // Önemli: Transportu komple güncelle
               state.transports[existingIndex] = {
                 ...updatedTransport,
-                // WebSocket'ten gelmeyen kritik alanları koru
+                // Socket.IO'ten gelmeyen kritik alanları koru
                 notes: updatedTransport.notes || existingTransport.notes,
                 // Gelen yeni veriler varsa onları kullan, yoksa mevcut verileri koru
                 destinations: updatedTransport.destinations || existingTransport.destinations,

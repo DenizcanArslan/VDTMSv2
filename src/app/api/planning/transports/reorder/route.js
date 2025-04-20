@@ -2,10 +2,10 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { startOfDay, endOfDay } from "date-fns";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
     await fetch(socketServerUrl, {
       method: 'POST',
@@ -18,9 +18,9 @@ const sendWebSocketNotification = async (event, data) => {
       }),
     });
     
-    console.log(`WebSocket bildirimi gönderildi: ${event}`);
+    console.log(`Socket.IO bildirimi gönderildi: ${event}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
   }
 };
 
@@ -82,8 +82,8 @@ export async function PUT(request) {
       throw new Error('Slot not found');
     }
 
-    // WebSocket bildirimi gönder
-    await sendWebSocketNotification('slot:update', slot);
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('slot:update', slot);
 
     return NextResponse.json({
       transportSlot: updatedTransportSlot,

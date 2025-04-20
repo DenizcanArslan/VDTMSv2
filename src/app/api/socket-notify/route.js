@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getWebSocketServerUrl } from '@/lib/websocket';
+import { getSocketServerUrl } from '@/lib/websocket';
 
 /**
- * WebSocket bildirim API endpoint'i
+ * Socket.IO bildirim API endpoint'i
  * @param {Request} req 
  * @returns {NextResponse}
  * 
- * Not: Bu endpoint'i çağırdığınızda, istemcilere otomatik olarak WebSocket bildirimi gönderilecektir.
+ * Not: Bu endpoint'i çağırdığınızda, istemcilere otomatik olarak Socket.IO bildirimi gönderilecektir.
  * Bildirimi alan istemciler transport ve slot güncellemelerini Redux'ta işleyecek ve arayüzlerini güncelleyecektir.
  * Gerekli durumlarda Redux'taki planningSlice/fetchPlanningData action'ı da çağrılarak tüm planlama verileri yenilenecektir.
  */
 export async function POST(req) {
   try {
-    // WebSocket sunucusunun URL'si
-    const socketServerUrl = getWebSocketServerUrl();
+    // Socket.IO sunucusunun URL'si
+    const socketServerUrl = getSocketServerUrl();
     const body = await req.json();
     
     if (!body.event || !body.data) {
@@ -23,7 +23,7 @@ export async function POST(req) {
       );
     }
     
-    // WebSocket sunucusuna bildirim gönder
+    // Socket.IO sunucusuna bildirim gönder
     const response = await fetch(socketServerUrl, {
       method: 'POST',
       headers: {
@@ -36,16 +36,16 @@ export async function POST(req) {
     });
     
     if (!response.ok) {
-      throw new Error(`WebSocket bildirim gönderme hatası: ${response.statusText}`);
+      throw new Error(`Socket.IO bildirim gönderme hatası: ${response.statusText}`);
     }
     
     const data = await response.json();
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
     return NextResponse.json(
-      { error: `WebSocket bildirim hatası: ${error.message}` },
+      { error: `Socket.IO bildirim hatası: ${error.message}` },
       { status: 500 }
     );
   }

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
     await fetch(socketServerUrl, {
       method: 'POST',
@@ -17,9 +17,9 @@ const sendWebSocketNotification = async (event, data) => {
       }),
     });
     
-    console.log(`WebSocket bildirimi gönderildi: ${event}`);
+    console.log(`Socket.IO bildirimi gönderildi: ${event}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
   }
 };
 
@@ -62,9 +62,9 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // WebSocket bildirimi gönder
-    await sendWebSocketNotification('transport:update', updatedTransport);
-    console.log("SCR/CPU requirement update notification sent via WebSocket");
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('transport:update', updatedTransport);
+    console.log("SCR/CPU requirement update notification sent via Socket.IO");
 
     return NextResponse.json(updatedTransport);
   } catch (error) {

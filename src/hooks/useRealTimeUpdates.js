@@ -66,7 +66,7 @@ const useRealTimeUpdates = () => {
   useEffect(() => {
     // Event dinleyicilerini temizle
     const cleanupListeners = () => {
-      console.log('WebSocket dinleyicileri temizleniyor...');
+      console.log('Socket.IO dinleyicileri temizleniyor...');
       Object.values(activeListeners.current).forEach(cleanup => {
         if (typeof cleanup === 'function') {
           cleanup();
@@ -84,7 +84,7 @@ const useRealTimeUpdates = () => {
       };
     }
     
-    console.log('WebSocket bağlantısı hazır, dinleyiciler kuruluyor');
+    console.log('Socket.IO bağlantısı hazır, dinleyiciler kuruluyor');
     console.log('Şu anki sayfa:', pathname, 'Planning sayfasında mı:', isInPlanningPage);
     
     // Custom DOM event listener ekle - force-planning-update
@@ -209,11 +209,11 @@ const useRealTimeUpdates = () => {
     const initializeData = async () => {
       if (isInPlanningPage) {
         try {
-          console.log('WebSocket bağlantısı kuruldu, planning verilerini güncelliyorum...');
+          console.log('Socket.IO bağlantısı kuruldu, planning verilerini güncelliyorum...');
           await fetchAndUpdatePlanning();
-          console.log('WebSocket bağlantısı sonrası ilk veri güncelleme tamamlandı');
+          console.log('Socket.IO bağlantısı sonrası ilk veri güncelleme tamamlandı');
         } catch (error) {
-          console.error('WebSocket bağlantısı sonrası veri güncelleme hatası:', error);
+          console.error('Socket.IO bağlantısı sonrası veri güncelleme hatası:', error);
         }
       }
     };
@@ -610,7 +610,7 @@ const useRealTimeUpdates = () => {
             return;
           }
 
-          // WebSocket'ten gelen slot verilerini detaylı logla
+          // Socket.IO'ten gelen slot verilerini detaylı logla
           const dateKeys = Object.keys(data.slots);
           console.log('\n📥 GELEN SLOT VERİLERİ:');
           console.log('Tarih Anahtarları:', dateKeys);
@@ -790,7 +790,7 @@ const useRealTimeUpdates = () => {
         }
       });
       
-      console.log('Tüm WebSocket dinleyicileri başarıyla kuruldu');
+      console.log('Tüm Socket.IO dinleyicileri başarıyla kuruldu');
     };
     
     // Dinleyicileri kur
@@ -801,7 +801,7 @@ const useRealTimeUpdates = () => {
     
     // Cleanup function
     return () => {
-      console.log('useRealTimeUpdates hook temizleniyor, tüm WebSocket dinleyicileri kaldırılıyor');
+      console.log('useRealTimeUpdates hook temizleniyor, tüm Socket.IO dinleyicileri kaldırılıyor');
       cleanupListeners();
       
       // Custom DOM event listenerını da temizle

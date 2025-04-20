@@ -12,6 +12,8 @@ import Link from 'next/link';
 import TrailerLocationsModal from '@/components/planning/TrailerLocationsModal';
 import SortConfirmModal from '@/components/planning/SortConfirmModal';
 import { toast } from 'react-toastify';
+import useRealTimeUpdates from '@/hooks/useRealTimeUpdates';
+import Spinner from '@/components/Spinner';
 
 const PlanningPage = () => {
   const dispatch = useAppDispatch();
@@ -28,64 +30,12 @@ const PlanningPage = () => {
   const [isSortingSlots, setIsSortingSlots] = useState(false);
   const [isSortConfirmModalOpen, setIsSortConfirmModalOpen] = useState(false);
 
-  // WebSocket bağlantısını dinle
-  useEffect(() => {
-    // WebSocket bağlantısını kur ve olayları dinle
-    const socket = new WebSocket(process.env.NEXT_PUBLIC_SOCKET_URL || 'ws://localhost:3001');
-    
-    socket.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-    
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        console.log('WebSocket message received:', message);
-        
-        // Planning ile ilgili tüm olayları dinle
-        if (message.event === 'planning:update' || 
-            message.event === 'slot:update' || 
-            message.event === 'slots:sort-by-destination' || 
-            message.event === 'slots:reorder') {
-          
-          console.log('Received planning update event:', message.event);
-          
-          // Eğer gelen mesajın tarihi şu anki seçili tarihle aynıysa verileri güncelle
-          const messageDate = message.data.date || message.data.affectedDate;
-          if (messageDate) {
-            const messageDateObj = new Date(messageDate);
-            const selectedDateObj = new Date(selectedDate);
-            
-            // Tarihleri karşılaştırmak için yıl-ay-gün formatında karşılaştır
-            if (messageDateObj.toDateString() === selectedDateObj.toDateString()) {
-              console.log('Updating planning data due to WebSocket event for current date');
-              dispatch(fetchPlanningData());
-            }
-          } else {
-            // Tarih bilgisi yoksa her durumda güncelle
-            console.log('Updating planning data due to WebSocket event');
-            dispatch(fetchPlanningData());
-          }
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-    
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-    
-    socket.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
-    
-    // Component unmount olduğunda WebSocket bağlantısını kapat
-    return () => {
-      socket.close();
-    };
-  }, [dispatch, selectedDate]); // selectedDate değiştiğinde bağlantıyı yenile
-
+  // Socket.IO hook'unu başlat
+  useRealTimeUpdates();
+  
+  // Native Socket.IO kodu artık kullanılmıyor
+  // Tüm gerçek zamanlı güncellemeler socket.io üzerinden geliyor
+  
   useEffect(() => {
     console.log('Planning Page - Fetching Data');
     dispatch(fetchPlanningData());
@@ -396,8 +346,17 @@ const PlanningPage = () => {
 
   const formattedDate = selectedDate ? format(new Date(selectedDate), 'd MMM yyyy') : '';
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-[80vh]">
+      <Spinner size="lg" text="Loading planning data..." />
+    </div>
+  );
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-[80vh] text-red-600">
+      <div className="text-xl font-semibold mb-2">Error</div>
+      <div>{error}</div>
+    </div>
+  );
 
   return (
     <div className="p-4">

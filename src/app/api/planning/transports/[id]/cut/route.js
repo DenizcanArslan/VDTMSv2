@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
       transportId: data.id,
       transportStatus: data.status,
@@ -27,13 +27,13 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}`);
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
     console.error('Hata detayları:', error.stack);
   }
 };
@@ -194,7 +194,7 @@ export async function POST(request, { params }) {
       return { originalTransport: transport, newTransport };
     });
 
-    // WebSocket bildirimleri gönder
+    // Socket.IO bildirimleri gönder
     // 1. Orijinal transport'un güncel halini al
     const updatedOriginalTransport = await prisma.transport.findUnique({
       where: { id: transportId },
@@ -216,11 +216,11 @@ export async function POST(request, { params }) {
       }
     });
 
-    // 2. WebSocket bildirimi gönder - transport durumu değişikliği için
-    await sendWebSocketNotification('transport:status-update', updatedOriginalTransport);
+    // 2. Socket.IO bildirimi gönder - transport durumu değişikliği için
+    await sendSocketNotification('transport:status-update', updatedOriginalTransport);
     
     // 3. Genel transport güncelleme bildirimi
-    await sendWebSocketNotification('transport:update', updatedOriginalTransport);
+    await sendSocketNotification('transport:update', updatedOriginalTransport);
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
@@ -372,7 +372,7 @@ async function handleRestoreTransport(transportId, cutEndDate, truck, trailer, n
           
           // Orijinal transport için bildirim gönder
           if (originalTransport) {
-            await sendWebSocketNotification('transport:update', originalTransport);
+            await sendSocketNotification('transport:update', originalTransport);
           }
         }
       }
@@ -413,10 +413,10 @@ async function handleRestoreTransport(transportId, cutEndDate, truck, trailer, n
       };
     });
 
-    // WebSocket bildirimleri gönder
+    // Socket.IO bildirimleri gönder
     // 1. Restore edilen transport için bildirim
     if (result.newTransport) {
-      await sendWebSocketNotification('transport:create', result.newTransport);
+      await sendSocketNotification('transport:create', result.newTransport);
     }
     
     // 2. Cut transport'un güncellenmiş durumu için bildirim
@@ -440,7 +440,7 @@ async function handleRestoreTransport(transportId, cutEndDate, truck, trailer, n
         }
       });
       
-      await sendWebSocketNotification('transport:update', updatedCutTransport);
+      await sendSocketNotification('transport:update', updatedCutTransport);
     }
 
     return NextResponse.json(result, { status: 200 });
@@ -523,7 +523,7 @@ export async function DELETE(request, { params }) {
         
         // Orijinal transport için bildirim gönder
         if (originalTransport) {
-          await sendWebSocketNotification('transport:update', originalTransport);
+          await sendSocketNotification('transport:update', originalTransport);
         }
       }
     }
@@ -561,7 +561,7 @@ export async function DELETE(request, { params }) {
     });
 
     // Transport silindi bildirimi gönder
-    await sendWebSocketNotification('transport:delete', { id: transportId });
+    await sendSocketNotification('transport:delete', { id: transportId });
 
     return NextResponse.json({ 
       message: "Transport permanently deleted successfully"

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getWebSocketServerUrl } from '@/lib/websocket';
+import { getSocketServerUrl } from '@/lib/websocket';
 
 /**
- * WebSocket bağlantı testi için API endpoint
- * Bu endpoint, WebSocket sunucusuna çeşitli URL'ler üzerinden bağlantı denemesi yapar ve sonuçları döndürür
+ * Socket.IO bağlantı testi için API endpoint
+ * Bu endpoint, Socket.IO sunucusuna çeşitli URL'ler üzerinden bağlantı denemesi yapar ve sonuçları döndürür
  */
 export async function GET(req) {
   const results = {
@@ -14,7 +14,7 @@ export async function GET(req) {
   
   // Test edilecek URL'ler
   const urls = [
-    getWebSocketServerUrl(),
+    getSocketServerUrl(),
     'http://localhost:3001/api/notify',
     'http://transport-websocket:3001/api/notify',
     'http://host.docker.internal:3001/api/notify',
@@ -35,7 +35,7 @@ export async function GET(req) {
         }
       };
       
-      console.log(`WebSocket testi: ${url} adresine istek gönderiliyor...`);
+      console.log(`Socket.IO testi: ${url} adresine istek gönderiliyor...`);
       
       const startTime = Date.now();
       const response = await fetch(url, {
@@ -62,7 +62,7 @@ export async function GET(req) {
       });
       
       if (response.ok) {
-        console.log(`WebSocket testi başarılı: ${url}`);
+        console.log(`Socket.IO testi başarılı: ${url}`);
         results.success = true;
       }
     } catch (error) {
@@ -72,7 +72,7 @@ export async function GET(req) {
         error: error.name === 'AbortError' ? 'Timeout' : error.message
       });
       
-      console.error(`WebSocket test hatası (${url}):`, error.message);
+      console.error(`Socket.IO test hatası (${url}):`, error.message);
     }
   }
   

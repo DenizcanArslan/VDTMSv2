@@ -42,7 +42,7 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
   const [isLoading, setIsLoading] = useState(false);
   const { on } = useSocket();
 
-  // WebSocket güncellemelerini dinle
+  // Socket.IO güncellemelerini dinle
   useEffect(() => {
     if (!isOpen) return;
 
@@ -50,7 +50,7 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
     const unsubscribeTransportUpdate = on('transport:update', (data) => {
       // Sadece açık olan transportun güncellemesi ise notları yenile
       if (data && data.id === parseInt(transportId)) {
-        console.log('WebSocket transport update received, refreshing notes');
+        console.log('Socket.IO transport update received, refreshing notes');
         fetchNotes();
       }
     });

@@ -3,12 +3,12 @@ import { NextResponse } from "next/server";
 import { startOfDay, endOfDay } from "date-fns";
 import { TransportCurrentStatus } from "@prisma/client";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, { id: data.id, event });
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, { id: data.id, event });
     
     const response = await fetch(socketServerUrl, {
       method: 'POST',
@@ -23,13 +23,13 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}, transportId: ${data.id}`);
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}, transportId: ${data.id}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
   }
 };
 
@@ -194,8 +194,8 @@ export async function PUT(request) {
       return updatedTransport;
     });
 
-    await sendWebSocketNotification('transport:update', result);
-    console.log('WebSocket transport:update notification sent for transportId:', result.id);
+    await sendSocketNotification('transport:update', result);
+    console.log('Socket.IO transport:update notification sent for transportId:', result.id);
 
     if (slotId) {
       const updatedSlot = await prisma.planningSlot.findUnique({
@@ -220,8 +220,8 @@ export async function PUT(request) {
       });
 
       if (updatedSlot) {
-        await sendWebSocketNotification('slot:update', updatedSlot);
-        console.log('WebSocket slot:update notification sent for slotId:', slotId);
+        await sendSocketNotification('slot:update', updatedSlot);
+        console.log('Socket.IO slot:update notification sent for slotId:', slotId);
       }
     }
 

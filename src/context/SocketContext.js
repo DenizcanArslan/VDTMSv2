@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'react-toastify';
-import { getWebSocketClientUrl } from '@/lib/websocket';
+import { getSocketClientUrl } from '@/lib/websocket';
 
 // Socket.IO Context
 export const SocketContext = createContext({
@@ -24,17 +24,17 @@ export const SocketProvider = ({ children }) => {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
-  // WebSocket bağlantısı kur
+  // Socket.IO bağlantısı kur
   useEffect(() => {
-    console.log('SocketProvider: Initializing WebSocket connection...');
+    console.log('SocketProvider: Initializing Socket.IO connection...');
     
-    // WebSocket sunucu URL'sini belirle - Docker içinde çalışan websocket sunucusunu kullan
-    const websocketUrl = getWebSocketClientUrl();
-    console.log('WebSocket URL:', websocketUrl);
+    // Socket.IO sunucu URL'sini belirle - Docker içinde çalışan socket sunucusunu kullan
+    const socketUrl = getSocketClientUrl();
+    console.log('Socket.IO URL:', socketUrl);
     
     // Socket.IO instance oluştur
-    const socketInstance = io(websocketUrl, {
-      transports: ['websocket', 'polling'],
+    const socketInstance = io(socketUrl, {
+      transports: ['polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -43,7 +43,7 @@ export const SocketProvider = ({ children }) => {
     
     // Bağlantı olaylarını dinle
     socketInstance.on('connect', () => {
-      console.log('WebSocket connected! Socket ID:', socketInstance.id);
+      console.log('Socket.IO connected! Socket ID:', socketInstance.id);
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
       
@@ -53,12 +53,12 @@ export const SocketProvider = ({ children }) => {
     });
     
     socketInstance.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason);
+      console.log('Socket.IO disconnected:', reason);
       setIsConnected(false);
     });
     
     socketInstance.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error.message);
+      console.error('Socket.IO connection error:', error.message);
       reconnectAttemptsRef.current += 1;
       
       if (reconnectAttemptsRef.current > maxReconnectAttempts) {
@@ -68,11 +68,11 @@ export const SocketProvider = ({ children }) => {
     });
     
     socketInstance.on('reconnect', (attemptNumber) => {
-      console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
+      console.log(`Socket.IO reconnected after ${attemptNumber} attempts`);
     });
     
     socketInstance.on('reconnect_error', (error) => {
-      console.error('WebSocket reconnection error:', error.message);
+      console.error('Socket.IO reconnection error:', error.message);
     });
     
     // Socket instance'ı kaydet
@@ -80,7 +80,7 @@ export const SocketProvider = ({ children }) => {
     
     // Cleanup
     return () => {
-      console.log('SocketProvider: Cleaning up WebSocket connection...');
+      console.log('SocketProvider: Cleaning up Socket.IO connection...');
       socketInstance.off('connect');
       socketInstance.off('disconnect');
       socketInstance.off('connect_error');

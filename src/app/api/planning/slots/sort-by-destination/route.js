@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { parseISO, startOfDay, format } from 'date-fns';
-import { getWebSocketServerUrl } from '@/lib/websocket';
+import { getSocketServerUrl } from '@/lib/websocket';
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (params) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (params) => {
   try {
-    // WebSocket server URL'ini helper fonksiyonundan al
-    const socketServerUrl = getWebSocketServerUrl();
+    // Socket.IO server URL'ini helper fonksiyonundan al
+    const socketServerUrl = getSocketServerUrl();
     const { event, data } = params;
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, {
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       socketUrl: socketServerUrl,
       dataType: typeof data,
       date: data.date || data.affectedDate || 'unknown'
@@ -36,17 +36,17 @@ const sendWebSocketNotification = async (params) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      throw new Error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}`, {
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}`, {
       url: socketServerUrl,
       event,
       date: data.date || data.affectedDate || 'unknown'
     });
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
-    // WebSocket hataları API yanıtını engellememeli
+    console.error('Socket.IO bildirim hatası:', error);
+    // Socket.IO hataları API yanıtını engellememeli
   }
 };
 
@@ -171,11 +171,11 @@ export async function POST(request) {
       firstDestinationTime: slot.firstDestinationTime
     }));
     
-    // WebSocket bildirimleri - farklı event tipleri ile birden fazla bildirim gönder
+    // Socket.IO bildirimleri - farklı event tipleri ile birden fazla bildirim gönder
     // Bildirimleri asenkron olarak gönder ama hatalara karşı dayanıklı ol
     try {
       // 1. Özel slot sıralama bildirimi
-      await sendWebSocketNotification({
+      await sendSocketNotification({
         event: 'slots:sort-by-destination',
         data: {
           date: formattedDate,
@@ -185,7 +185,7 @@ export async function POST(request) {
       });
       
       // 2. Genel slot güncelleme bildirimi 
-      await sendWebSocketNotification({
+      await sendSocketNotification({
         event: 'slot:update',
         data: {
           type: 'reorder',
@@ -196,7 +196,7 @@ export async function POST(request) {
       });
       
       // 3. Genel planlama güncelleme bildirimi
-      await sendWebSocketNotification({
+      await sendSocketNotification({
         event: 'planning:update',
         data: {
           timestamp: new Date().toISOString(),
@@ -206,8 +206,8 @@ export async function POST(request) {
         }
       });
     } catch (wsError) {
-      console.error('WebSocket notifications failed:', wsError);
-      // WebSocket hataları API yanıtını engellememeli
+      console.error('Socket.IO notifications failed:', wsError);
+      // Socket.IO hataları API yanıtını engellememeli
     }
     
     return NextResponse.json({

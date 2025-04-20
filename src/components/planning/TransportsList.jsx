@@ -1,13 +1,13 @@
 'use client';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { addSlot, removeSlot, reorderSlots, setSelectedDate, fetchPlanningData, optimisticReorderThunk, optimisticTransportAssign, updateSlotTransports, addTransport, updateTransportStatus, updateTransportCurrentStatus, updateTransportEtas, updateTransportTrailer, updateTransportsAndSlots } from '@/redux/features/planningSlice';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, addDays, isSameDay } from 'date-fns';
 import { FiPlusCircle, FiMinusCircle, FiPlus, FiMove, FiAlertCircle, FiMapPin, FiCalendar, FiChevronLeft, FiChevronRight, FiPause, FiInbox, FiAlertTriangle } from 'react-icons/fi';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay, rectIntersection, useDroppable } from '@dnd-kit/core';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import SortableSlot from './SortableSlot';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import TransportForm from '@/components/forms/TransportForm';
 import Modal from '@/components/Modal';
 import DraggableTransport from './DraggableTransport';
@@ -20,6 +20,7 @@ import ActivateTransportModal from './ActivateTransportModal';
 import UnassignDriverConfirmModal from './UnassignDriverConfirmModal';
 import { scroller } from 'react-scroll';
 import { useSelector } from 'react-redux';
+import Spinner from '@/components/Spinner';
 
 const TransportsList = ({ 
   selectedSlotNumber, 
@@ -61,6 +62,7 @@ const TransportsList = ({
   const [totalSlotCount, setTotalSlotCount] = useState(0);
   const [isSettingSlots, setIsSettingSlots] = useState(false);
   const [showSetTotalSlotsModal, setShowSetTotalSlotsModal] = useState(false);
+  const [isDateChanging, setIsDateChanging] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -253,7 +255,7 @@ const TransportsList = ({
 
             console.log('Slot reordering completed, result:', result);
             
-            // WebSocket olayı slots:reorder ile gönderilecek, diğer kullanıcıların
+            // Socket.IO olayı slots:reorder ile gönderilecek, diğer kullanıcıların
             // ekranı otomatik olarak güncellenecek.
 
           } catch (error) {
@@ -962,10 +964,12 @@ const TransportsList = ({
   };
 
   const handleDateChange = (days) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
+    const newDate = addDays(new Date(selectedDate), days);
+    setIsDateChanging(true);
     dispatch(setSelectedDate(newDate.toISOString()));
-    dispatch(fetchPlanningData());
+    dispatch(fetchPlanningData()).finally(() => {
+      setIsDateChanging(false);
+    });
   };
 
   const handleHoldConfirm = (transport) => {
@@ -1144,16 +1148,21 @@ const TransportsList = ({
           <div className="flex items-center gap-1">
             <button
               onClick={() => handleDateChange(-1)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+              disabled={isDateChanging}
             >
               <FiChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => handleDateChange(1)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+              disabled={isDateChanging}
             >
               <FiChevronRight className="w-4 h-4" />
             </button>
+            {isDateChanging && (
+              <Spinner size="sm" className="ml-2" />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">

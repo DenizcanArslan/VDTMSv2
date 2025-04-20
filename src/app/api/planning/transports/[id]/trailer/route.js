@@ -2,12 +2,12 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { TransportCurrentStatus } from "@prisma/client";
 
-// WebSocket bildirim fonksiyonu
-const sendWebSocketNotification = async (event, data) => {
+// Socket.IO bildirim fonksiyonu
+const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
+    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
     
-    console.log(`WebSocket bildirimi gönderiliyor: ${event}`, { id: data.id, event });
+    console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, { id: data.id, event });
     
     const response = await fetch(socketServerUrl, {
       method: 'POST',
@@ -22,13 +22,13 @@ const sendWebSocketNotification = async (event, data) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`WebSocket bildirim hatası: ${response.status} ${errorText}`);
+      console.error(`Socket.IO bildirim hatası: ${response.status} ${errorText}`);
       return;
     }
     
-    console.log(`WebSocket bildirimi başarıyla gönderildi: ${event}, transportId: ${data.id}`);
+    console.log(`Socket.IO bildirimi başarıyla gönderildi: ${event}, transportId: ${data.id}`);
   } catch (error) {
-    console.error('WebSocket bildirim hatası:', error);
+    console.error('Socket.IO bildirim hatası:', error);
   }
 };
 
@@ -213,9 +213,9 @@ export async function PUT(request, { params }) {
       return updatedTransport;
     });
     
-    // WebSocket bildirimi gönder
-    await sendWebSocketNotification('transport:update', result);
-    console.log('Trailer assignment notification sent via WebSocket for transportId:', result.id);
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('transport:update', result);
+    console.log('Trailer assignment notification sent via Socket.IO for transportId:', result.id);
     
     return NextResponse.json(result);
   } catch (error) {

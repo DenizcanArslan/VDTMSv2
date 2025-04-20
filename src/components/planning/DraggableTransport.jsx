@@ -309,14 +309,14 @@ export default function DraggableTransport({
   
   const [isCutModalOpen, setIsCutModalOpen] = useState(false);
   
-  // Listen for real-time WebSocket updates on transport changes
+  // Listen for real-time Socket.IO updates on transport changes
   useEffect(() => {
     const handleTransportUpdate = (updatedTransport) => {
       // Only update if this is the same transport
       if (updatedTransport.id === transport.id) {
-        console.log('WebSocket: Received transport update for current transport:', updatedTransport);
+        console.log('Socket.IO: Received transport update for current transport:', updatedTransport);
         
-        // Update SCR/CPU states when transport is updated via WebSocket
+        // Update SCR/CPU states when transport is updated via Socket.IO
         if (updatedTransport.scrCpuStatus !== scrCpuStatus) {
           setScrCpuStatus(updatedTransport.scrCpuStatus);
         }
@@ -1057,7 +1057,7 @@ export default function DraggableTransport({
               // Redux store'u güncellerken, güncel veriyi döndüren API yanıtını kullan
               const updatedTransport = await response.json();
               
-              // WebSocket üzerinden diğer kullanıcılara iletilen güncelleme, lokal olarak da Redux store'a uygula
+              // Socket.IO üzerinden diğer kullanıcılara iletilen güncelleme, lokal olarak da Redux store'a uygula
               dispatch(updateTransportsAndSlots({
                 transportUpdates: [updatedTransport],
                 type: 'update'
@@ -1159,7 +1159,7 @@ export default function DraggableTransport({
       // Redux store'u güncellerken, güncel veriyi döndüren API yanıtını kullan
       const updatedTransport = await response.json();
       
-      // WebSocket üzerinden diğer kullanıcılara iletilen güncelleme, lokal olarak da Redux store'a uygula
+      // Socket.IO üzerinden diğer kullanıcılara iletilen güncelleme, lokal olarak da Redux store'a uygula
       dispatch(updateTransportsAndSlots({
         transportUpdates: [updatedTransport],
         type: 'update'

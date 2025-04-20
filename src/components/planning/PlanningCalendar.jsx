@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -6,15 +7,21 @@ import multiMonthPlugin from '@fullcalendar/multimonth';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import { setSelectedDate, fetchPlanningData } from '@/redux/features/planningSlice';
 import { startOfDay } from 'date-fns';
+import Spinner from '@/components/Spinner';
 
 const PlanningCalendar = ({ isOpen, onClose }) => {
   const dispatch = useAppDispatch();
   const { transports, selectedDate } = useAppSelector(state => state.planning);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleDateClick = (arg) => {
+    setIsLoading(true);
     dispatch(setSelectedDate(arg.date.toISOString()));
-    dispatch(fetchPlanningData());
-    onClose();
+    dispatch(fetchPlanningData())
+      .finally(() => {
+        setIsLoading(false);
+        onClose();
+      });
   };
 
   const events = transports
@@ -67,16 +74,22 @@ const PlanningCalendar = ({ isOpen, onClose }) => {
         }}
       >
         <div 
-          className="bg-white p-6 rounded-lg shadow-xl max-w-3xl w-full"
+          className="bg-white p-6 rounded-lg shadow-xl max-w-3xl w-full relative"
           style={{
             animation: isOpen ? 'slideIn 0.3s ease-out' : 'none'
           }}
         >
+          {isLoading && (
+            <div className="absolute inset-0 bg-white bg-opacity-70 z-10 flex items-center justify-center">
+              <Spinner size="lg" text="Loading..." />
+            </div>
+          )}
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Select Date</h2>
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-full transition-all duration-200"
+              disabled={isLoading}
             >
               ✕
             </button>

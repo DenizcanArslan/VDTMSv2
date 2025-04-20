@@ -1,15 +1,15 @@
 /**
- * WebSocket utility functions to standardize URLs across the application
+ * Socket.IO utility functions to standardize URLs across the application
  */
 
 /**
- * Gets the WebSocket server URL for server-side API calls
+ * Gets the Socket.IO server URL for server-side API calls
  * Prioritizes the Docker container name for reliable container-to-container communication
  * Provides fallbacks for different network environments
  */
-export function getWebSocketServerUrl() {
+export function getSocketServerUrl() {
   // Öncelikle çevre değişkeninden URL'yi al
-  const configuredUrl = process.env.WEBSOCKET_SERVER_URL;
+  const configuredUrl = process.env.SOCKET_SERVER_URL;
   if (configuredUrl) return configuredUrl;
   
   // Önce Docker container adını kullan - container-to-container iletişim için
@@ -22,23 +22,23 @@ export function getWebSocketServerUrl() {
     'http://127.0.0.1:3001/api/notify'
   ];
   
-  // İlk URL'i döndür, alternatifler sendWebSocketNotification içinde denenecek
+  // İlk URL'i döndür, alternatifler sendSocketNotification içinde denenecek
   return alternativeUrls[0];
 }
 
 /**
- * Gets the WebSocket client URL for browser connections
+ * Gets the Socket.IO client URL for browser connections
  * Uses localhost or the configured public URL
  */
-export function getWebSocketClientUrl() {
+export function getSocketClientUrl() {
   return process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
 }
 
 /**
- * WebSocket bağlantı hatalarını takip etmek için debug fonksiyonu
+ * Socket.IO bağlantı hatalarını takip etmek için debug fonksiyonu
  */
-export function logWebSocketError(error, context = {}) {
-  console.error('WebSocket Error Details:', {
+export function logSocketError(error, context = {}) {
+  console.error('Socket.IO Error Details:', {
     name: error.name,
     message: error.message,
     stack: error.stack,
