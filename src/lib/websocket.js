@@ -4,34 +4,37 @@
 
 /**
  * Gets the Socket.IO server URL for server-side API calls
- * Prioritizes the Docker container name for reliable container-to-container communication
- * Provides fallbacks for different network environments
+ * Prioritizes environment variables for production deployment
  */
 export function getSocketServerUrl() {
   // Öncelikle çevre değişkeninden URL'yi al
   const configuredUrl = process.env.SOCKET_SERVER_URL;
   if (configuredUrl) return configuredUrl;
   
-  // Önce Docker container adını kullan - container-to-container iletişim için
-  const containerUrl = 'http://transport-websocket:3001/api/notify';
+  // EC2 IP adresi - production için
+  const productionUrl = 'https://63.177.145.2:3001/api/notify';
   
-  // Alternatif URL'leri dene - container fail olursa local sunucuya yönlendir
+  // Alternatif URL'leri dene - production fail olursa local sunucuya yönlendir
   const alternativeUrls = [
-    containerUrl,
-    'http://localhost:3001/api/notify',
-    'http://127.0.0.1:3001/api/notify'
+    productionUrl,
+    'https://localhost:3001/api/notify',
+    'https://127.0.0.1:3001/api/notify'
   ];
   
-  // İlk URL'i döndür, alternatifler sendSocketNotification içinde denenecek
+  // İlk URL'i döndür
   return alternativeUrls[0];
 }
 
 /**
  * Gets the Socket.IO client URL for browser connections
- * Uses localhost or the configured public URL
+ * Uses secure HTTPS connections for all environments
  */
 export function getSocketClientUrl() {
-  return process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+  const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (configuredUrl) return configuredUrl;
+  
+  // Production için EC2 IP adresi
+  return 'https://63.177.145.2:3001';
 }
 
 /**
@@ -63,7 +66,8 @@ export async function sendSocketNotification(event, data, timeoutMs = 3000) {
     
     console.log(`Socket.IO bildirimi gönderiliyor: ${event}`, {
       dataType: typeof data,
-      dataId: data.id
+      dataId: data.id,
+      url: socketServerUrl
     });
     
     // Set up abort controller for timeout
