@@ -7,22 +7,11 @@
  * Prioritizes environment variables for production deployment
  */
 export function getSocketServerUrl() {
-  // Öncelikle çevre değişkeninden URL'yi al
   const configuredUrl = process.env.SOCKET_SERVER_URL;
   if (configuredUrl) return configuredUrl;
   
-  // EC2 IP adresi - production için
-  const productionUrl = 'https://63.177.145.2:3001/api/notify';
-  
-  // Alternatif URL'leri dene - production fail olursa local sunucuya yönlendir
-  const alternativeUrls = [
-    productionUrl,
-    'https://localhost:3001/api/notify',
-    'https://127.0.0.1:3001/api/notify'
-  ];
-  
-  // İlk URL'i döndür
-  return alternativeUrls[0];
+  // DuckDNS domain ile güncelle
+  return 'https://vandijle.duckdns.org:3001/api/notify';
 }
 
 /**
@@ -33,8 +22,8 @@ export function getSocketClientUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
   if (configuredUrl) return configuredUrl;
   
-  // Production için EC2 IP adresi
-  return 'https://63.177.145.2:3001';
+  // DuckDNS domain ile güncelle
+  return 'https://vandijle.duckdns.org:3001';
 }
 
 /**
