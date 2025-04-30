@@ -164,13 +164,16 @@ const useRealTimeUpdates = () => {
         console.log('Fetching updated planning data...');
         // Force browser to make a new request and not use cache
         const uniqueParam = new Date().getTime();
+        
+        // Cache busting için daha agresif bir yaklaşım
         const response = await fetch(`/api/planning?nocache=${uniqueParam}`, {
           method: 'GET',
           cache: 'no-store',
           headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         });
         
@@ -179,26 +182,34 @@ const useRealTimeUpdates = () => {
         }
         
         const planningData = await response.json();
-        console.log('Successfully fetched complete planning data:', {
+        
+        // Redux store güncelleme
+        console.log('Dispatching planning data to Redux store:', {
           transportCount: planningData.transports?.length || 0,
           slotDates: Object.keys(planningData.slots || {})
         });
         
-        // First ensure we have the data before updating the Redux store
+        // Dispatch öncesi ek kontrol
         if (!planningData || !planningData.slots) {
-          console.error('Received invalid planning data:', planningData);
-          throw new Error('Received invalid planning data from API');
+          console.error('Invalid planning data received:', planningData);
+          throw new Error('Invalid planning data structure');
         }
         
-        // Dispatch with a small delay to ensure UI updates properly
-        setTimeout(() => {
-          dispatch(updateTransportsAndSlots({
-            transportUpdates: planningData.transports || [],
-            slotUpdates: planningData.slots || {},
-            type: 'update'
+        // KRITIK: Dispatch'i doğrudan yap, setTimeout kullanma
+        dispatch(updateTransportsAndSlots({
+          transportUpdates: planningData.transports || [],
+          slotUpdates: planningData.slots || {},
+          type: 'update'
+        }));
+        
+        // DOM eventini manuel olarak tetikle
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('planning-data-updated', { 
+            detail: { timestamp: new Date().toISOString() }
           }));
-          console.log('Redux store refreshed with latest planning data');
-        }, 50);
+        }
+        
+        console.log('Redux store refreshed with latest planning data');
         
         return planningData;
       } catch (error) {
@@ -207,6 +218,14 @@ const useRealTimeUpdates = () => {
         
         if (isInPlanningPage) {
           showToastDebounced('Failed to refresh planning data', 'error');
+          
+          // Planlama verilerini alırken ciddi bir hata oluşursa, kritik durumlarda sayfa yenilemesi dene
+          if (error.message.includes('invalid') || error.message.includes('unexpected')) {
+            console.log('Critical error, forcing page reload in 3 seconds...');
+            setTimeout(() => {
+              if (typeof window !== 'undefined') window.location.reload();
+            }, 3000);
+          }
         }
         throw error;
       } finally {

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
-import { fetchPlanningData, setSelectedDate } from '@/redux/features/planningSlice';
+import { fetchPlanningData, setSelectedDate, updateTransportsAndSlots } from '@/redux/features/planningSlice';
 import PlanningCalendar from '@/components/planning/PlanningCalendar';
 import TransportsList from '@/components/planning/TransportsList';
 import CompactDayView from '@/components/planning/CompactDayView';
-import { FiMaximize2, FiMinimize2, FiCalendar, FiScissors, FiSearch, FiX, FiPause, FiMapPin, FiClock } from 'react-icons/fi';
+import { FiMaximize2, FiMinimize2, FiCalendar, FiScissors, FiSearch, FiX, FiPause, FiMapPin, FiClock, FiRefreshCw } from 'react-icons/fi';
 import { format, startOfDay, parseISO } from 'date-fns';
 import Link from 'next/link';
 import TrailerLocationsModal from '@/components/planning/TrailerLocationsModal';
@@ -29,16 +29,65 @@ const PlanningPage = () => {
   const [isTrailerLocationsModalOpen, setIsTrailerLocationsModalOpen] = useState(false);
   const [isSortingSlots, setIsSortingSlots] = useState(false);
   const [isSortConfirmModalOpen, setIsSortConfirmModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Socket.IO hook'unu başlat
   useRealTimeUpdates();
+  
+  // Force veri yenilemeyi garantiye al
+  const fetchPlanningDataWithCacheBust = async () => {
+    try {
+      console.log('Planning verileri manuel olarak fetch ediliyor...');
+      setIsRefreshing(true);
+      
+      // Cache'i engellemek için timestamp ekle
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/planning?nocache=${timestamp}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Planning verileri alınamadı');
+      }
+      
+      const data = await response.json();
+      console.log('Planning verileri alındı:', {
+        transportCount: data.transports?.length || 0,
+        slotDates: Object.keys(data.slots || {})
+      });
+      
+      // Redux store'u doğrudan güncelle
+      dispatch(updateTransportsAndSlots({
+        transportUpdates: data.transports || [],
+        slotUpdates: data.slots || {},
+        type: 'forceUpdate'
+      }));
+      
+      toast.success('Veriler başarıyla güncellendi', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+      
+    } catch (error) {
+      console.error('Planning verileri yüklenirken hata:', error);
+      toast.error('Planning verileri yüklenemedi');
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
   
   // Native Socket.IO kodu artık kullanılmıyor
   // Tüm gerçek zamanlı güncellemeler socket.io üzerinden geliyor
   
   useEffect(() => {
-    console.log('Planning Page - Fetching Data');
-    dispatch(fetchPlanningData());
+    console.log('Planning Page - Sayfa yüklendiğinde çalışıyor');
+    
+    // API'den verileri agresif şekilde al - cache problemlerine karşı önlem
+    fetchPlanningDataWithCacheBust();
     
     // Sayfa yüklendikten sonra, localStorage'dan kaydedilmiş tarihi kontrol et
     const savedDate = localStorage.getItem('planningSelectedDate');
@@ -47,7 +96,32 @@ const PlanningPage = () => {
       dispatch(setSelectedDate(savedDate));
       localStorage.removeItem('planningSelectedDate');
     }
+    
+    // Event listener ekle - manuel olarak veri yenilemek için
+    const handleDataRefresh = () => {
+      console.log('Manuel veri yenileme istendi');
+      fetchPlanningDataWithCacheBust();
+    };
+    
+    window.addEventListener('manual-refresh-planning', handleDataRefresh);
+    
+    // Planning sayfası için otomatik yenileme (her 5 dakikada bir)
+    const autoRefreshInterval = setInterval(() => {
+      console.log('Otomatik yenileme yapılıyor...');
+      fetchPlanningDataWithCacheBust();
+    }, 5 * 60 * 1000); // 5 dakika
+    
+    return () => {
+      window.removeEventListener('manual-refresh-planning', handleDataRefresh);
+      clearInterval(autoRefreshInterval);
+    };
   }, [dispatch]);
+
+  // Manuel yenileme işlemi
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    await fetchPlanningDataWithCacheBust();
+  };
 
   // Modal açma işlevi
   const openSortModal = () => {
@@ -359,87 +433,93 @@ const PlanningPage = () => {
   );
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Planning</h1>
-          
-          {/* Search bar - positioned next to the Planning heading */}
-          <div className="relative w-80">
-            <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
-              <span className="pl-2 text-gray-400">
-                <FiSearch className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search..."
-                className="w-full px-2 py-1.5 text-xs focus:outline-none"
-              />
-              {searchQuery && (
-                <button
-                  onClick={clearSearch}
-                  className="px-2 text-gray-400 hover:text-gray-600"
-                >
-                  <FiX className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+    <div className="p-4 space-y-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 space-y-2 lg:space-y-0">
+        <h1 className="text-2xl font-semibold">Planning Calendar</h1>
         
-        <div className="flex items-center gap-2">
-          {/* Slot Sıralama Butonu */}
+        <div className="flex space-x-2 lg:justify-end items-center">
+          {/* Manuel yenileme düğmesi */}
           <button 
-            onClick={openSortModal}
-            className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 h-8 min-w-[100px]"
-            disabled={isSortingSlots}
+            onClick={handleManualRefresh} 
+            disabled={isRefreshing}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-md flex items-center"
+            title="Manuel olarak verileri yenile"
           >
-            <FiClock className={`w-3.5 h-3.5 ${isSortingSlots ? 'animate-spin' : ''}`} />
-            {isSortingSlots ? 'Sorting...' : 'Sort by Dest. Time'}
+            {isRefreshing ? (
+              <><span className="mr-1">Yenileniyor</span><Spinner size="sm" /></>
+            ) : (
+              <><FiRefreshCw className="mr-1" /> Yenile</>
+            )}
           </button>
-
-          {/* Yeni Trailer Locations Butonu */}
-          <button 
-            onClick={() => setIsTrailerLocationsModalOpen(true)}
-            className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded-md hover:bg-purple-700 h-8 min-w-[100px]"
-          >
-            <FiMapPin className="w-3.5 h-3.5" />
-            Trailer Locations
-          </button>
-
-          {/* Kesme sayfasına bağlantı */}
-          <Link href="/cut-transports" className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 h-8 min-w-[100px]">
-            <FiScissors className="w-3.5 h-3.5" />
-            Cut Transports
-          </Link>
-          
-          {/* Tarih seçme butonu */}
-          <button
-            onClick={() => setIsCalendarOpen(true)}
-            className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 h-8 min-w-[100px]"
-          >
-            <FiCalendar className="w-3.5 h-3.5" />
-            {formattedDate}
-          </button>
-          
-          {/* Toggle butonu */}
+        
+          {/* Toggle view button */}
           <button
             onClick={() => setIsCompactView(!isCompactView)}
-            className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-dijle-dark-blue text-white rounded-md hover:bg-dijle-light-blue h-8 min-w-[100px]"
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded"
+            title={isCompactView ? "Switch to calendar view" : "Switch to compact view"}
           >
-            {isCompactView ? (
-              <>
-                <FiMaximize2 className="w-3.5 h-3.5" />
-                Detailed View
-              </>
+            {isCompactView ? <FiMaximize2 /> : <FiMinimize2 />}
+          </button>
+          
+          {/* Calendar button */}
+          <button
+            onClick={() => setIsCalendarOpen(true)}
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded"
+            title="Open calendar"
+          >
+            <FiCalendar />
+          </button>
+          
+          {/* Sort button */}
+          <button
+            onClick={openSortModal}
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded flex items-center"
+            title="Sort slots by destination time"
+            disabled={isSortingSlots}
+          >
+            {isSortingSlots ? (
+              <><Spinner size="sm" /><span className="ml-2">Sorting...</span></>
             ) : (
-              <>
-                <FiMinimize2 className="w-3.5 h-3.5" />
-                Compact View
-              </>
+              <><FiScissors /><span className="ml-2">Sort by Destination</span></>
             )}
+          </button>
+          
+          {/* Trailer locations button */}
+          <button
+            onClick={() => setIsTrailerLocationsModalOpen(true)}
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded flex items-center"
+            title="View trailer locations"
+          >
+            <FiMapPin /><span className="ml-2">Trailer Locations</span>
+          </button>
+          
+          {/* Search bar */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search transports..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-8 pr-8 py-2 border rounded-md"
+            />
+            <FiSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            {searchQuery && (
+              <button 
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <FiX />
+              </button>
+            )}
+          </div>
+          
+          {/* On-hold button */}
+          <button
+            onClick={() => setIsOnHoldModalOpen(true)}
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded flex items-center"
+            title="View on-hold transports"
+          >
+            <FiPause /><span className="ml-2">On Hold</span>
           </button>
         </div>
       </div>
