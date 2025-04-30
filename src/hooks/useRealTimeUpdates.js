@@ -63,6 +63,18 @@ const useRealTimeUpdates = () => {
     }, 500)
   ).current;
 
+  // Create a more resilient debounced function for data fetching
+  const debouncedFetchAndUpdate = debounce(async () => {
+    try {
+      console.log('Executing debounced planning data fetch...');
+      if (!isUpdating.current) {
+        await doFetchAndUpdate();
+      }
+    } catch (error) {
+      console.error('Error in debounced fetch:', error);
+    }
+  }, 500);
+
   useEffect(() => {
     // Event dinleyicilerini temizle
     const cleanupListeners = () => {
@@ -462,11 +474,22 @@ const useRealTimeUpdates = () => {
       });
       
       activeListeners.current.slotUpdate = on('slot:update', async (data) => {
-        console.log('Slot güncellendi:', data);
+        console.log('🔄 Slot güncelleme olayı alındı:', {
+          id: data?.id,
+          updateType: data?.updateType,
+          date: data?.date
+        });
         
         try {
+          // Veri doğrulama
+          if (!data || !data.id) {
+            console.error('Geçersiz slot verisi alındı:', data);
+            return;
+          }
+          
           // Slot state'i güncelleme
           dispatch(updateSlot(data));
+          console.log('Redux updateSlot action dispatched successfully for:', data?.id);
           
           // Özel güncelleme tiplerini kontrol et - driver-start-note için
           if (data.updateType === 'driver-start-note') {
@@ -481,7 +504,21 @@ const useRealTimeUpdates = () => {
               return;
             }
             
-            const dateStr = startOfDay(new Date(data.date)).toISOString();
+            // Tarih formatını kontrol et
+            let dateStr;
+            try {
+              const dateObj = new Date(data.date);
+              if (isNaN(dateObj.getTime())) {
+                throw new Error('Invalid date');
+              }
+              dateStr = startOfDay(dateObj).toISOString();
+            } catch (dateError) {
+              console.error('Tarih dönüştürme hatası:', dateError);
+              // Hatalı tarih durumunda bugünkü tarihi kullan
+              dateStr = startOfDay(new Date()).toISOString();
+            }
+            
+            console.log('Kullanılan tarih:', dateStr);
             
             // Doğrudan planningSlice'deki updateSlotDriverStartNote action'ını kullan
             dispatch(updateSlotDriverStartNote({
@@ -489,14 +526,24 @@ const useRealTimeUpdates = () => {
               slotId: data.id,
               driverStartNote: data.driverStartNote
             }));
+            console.log('Redux updateSlotDriverStartNote action dispatched successfully');
+            
+            // Veri güncellemesinin de gerçekleştiğinden emin olmak için veriyi de güncelle
+            debouncedFetchAndUpdate();
+            
+            // DOM eventini manuel olarak tetikle
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('force-planning-update', { 
+                detail: { event: 'slot:update', data: data }
+              }));
+              console.log('force-planning-update DOM event dispatched');
+            }
             
             // Sadece planning sayfasındaysa bildirim göster
             if (isInPlanningPage) {
               showToastDebounced('Start time updated');
             }
             
-            // Start time güncellemesi olduğu için tam veri çekmeye gerek yok
-            console.log('Start time başarıyla güncellendi');
             return;
           }
           
@@ -510,7 +557,17 @@ const useRealTimeUpdates = () => {
           }
           
           // Diğer slot güncellemeleri için tam veri al
-          await fetchAndUpdatePlanning();
+          console.log('Fetching complete planning data after slot update...');
+          await doFetchAndUpdate();
+          console.log('Planning data successfully updated after slot update');
+          
+          // DOM eventini manuel olarak tetikle
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('force-planning-update', { 
+              detail: { event: 'slot:update', data: data }
+            }));
+            console.log('force-planning-update DOM event dispatched');
+          }
           
           // Sadece planning sayfasındaysa bildirim göster
           if (isInPlanningPage) {
@@ -518,6 +575,24 @@ const useRealTimeUpdates = () => {
           }
         } catch (error) {
           console.error('Slot güncelleme hatası:', error);
+          console.error('Error stack:', error.stack);
+          
+          // API üzerinden tam veriyi alarak durumu kurtarmayı dene
+          console.log('Hata sonrası tam veri güncelleme deneniyor...');
+          debouncedFetchAndUpdate();
+          
+          // Hata durumunda yine de bildir
+          if (isInPlanningPage) {
+            showToastDebounced('Error updating slot data', 'error');
+          }
+          
+          // DOM eventini manuel olarak tetikle - hata durumunda bile
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('force-planning-update', { 
+              detail: { event: 'slot:update-error', data: { error: error.message } }
+            }));
+            console.log('force-planning-update DOM event dispatched (error case)');
+          }
         }
       });
       

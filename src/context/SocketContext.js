@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }) => {
     
     // Socket.IO instance oluştur - Self-signed sertifika desteğiyle
     const socketInstance = io(socketUrl, {
-      transports: ['polling', 'websocket'], // Hem polling hem websocket dene
+      transports: ['websocket', 'polling'], // Önce websocket dene, sonra polling
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -56,6 +56,16 @@ export const SocketProvider = ({ children }) => {
       // Transport ve slot güncellemelerine otomatik olarak abone ol
       socketInstance.emit('transport:subscribe');
       socketInstance.emit('slot:subscribe');
+      
+      // Connect olduktan 1 saniye sonra tekrar abone olma komutu gönder
+      // Bu, sunucu tarafında olası kayıt sorunlarını çözmek için
+      setTimeout(() => {
+        if (socketInstance.connected) {
+          console.log('Re-subscribing to events after 1 second...');
+          socketInstance.emit('transport:subscribe');
+          socketInstance.emit('slot:subscribe');
+        }
+      }, 1000);
     });
     
     socketInstance.on('disconnect', (reason) => {
@@ -64,6 +74,16 @@ export const SocketProvider = ({ children }) => {
       
       // Kullanıcıya bağlantı koptuğunu bildir
       toast.warning('Canlı güncellemeler kesintiye uğradı, yeniden bağlanılıyor...', { autoClose: 3000 });
+      
+      // Disconnect nedeni transport kapanması ise, manuel olarak reconnect dene
+      if (reason === 'transport close' || reason === 'ping timeout') {
+        console.log('Attempting to reconnect manually...');
+        setTimeout(() => {
+          if (!socketInstance.connected) {
+            socketInstance.connect();
+          }
+        }, 1000);
+      }
     });
     
     socketInstance.on('connect_error', (error) => {
@@ -82,6 +102,13 @@ export const SocketProvider = ({ children }) => {
           autoClose: false,
           closeOnClick: true 
         });
+        
+        // 30 saniye sonra yeniden bağlanmayı dene
+        setTimeout(() => {
+          console.log('Attempting to reconnect after cooling period...');
+          reconnectAttemptsRef.current = 0;
+          socketInstance.connect();
+        }, 30000);
       }
     });
     
@@ -90,10 +117,21 @@ export const SocketProvider = ({ children }) => {
       
       // Kullanıcıya bildir
       toast.success('Canlı güncellemeler yeniden etkinleştirildi', { autoClose: 2000 });
+      
+      // Reconnect olduktan sonra tekrar abone ol
+      if (socketInstance.connected) {
+        console.log('Re-subscribing to events after reconnect...');
+        socketInstance.emit('transport:subscribe');
+        socketInstance.emit('slot:subscribe');
+      }
     });
     
     socketInstance.on('reconnect_error', (error) => {
       console.error('Socket.IO reconnection error:', error.message);
+    });
+    
+    socketInstance.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`Socket.IO reconnect attempt #${attemptNumber}`);
     });
     
     // Debug için transport durumunu dinle
@@ -101,11 +139,25 @@ export const SocketProvider = ({ children }) => {
     socketInstance.io.on('reconnect_attempt', () => console.log('Socket.IO reconnect attempt'));
     socketInstance.io.on('error', (err) => console.error('Socket.IO transport error:', err));
     
+    // Bağlantı ping/pong durumunu takip et
+    socketInstance.io.on('ping', () => {
+      console.log('Socket.IO ping received');
+    });
+    
+    socketInstance.io.on('pong', (latency) => {
+      console.log(`Socket.IO pong received (latency: ${latency}ms)`);
+    });
+    
     // Önemli güncellemeleri dinlemeye başla
     const events = ['slot:update', 'slots:reorder', 'transport:update', 'driver:assign', 'truck:assign'];
     events.forEach(event => {
       socketInstance.on(event, (data) => {
-        console.log(`Güncellenme alındı (${event}):`, data);
+        console.log(`Güncellenme alındı (${event}):`, {
+          id: data?.id,
+          updateType: data?.updateType,
+          transportId: data?.transportId,
+          time: new Date().toISOString()
+        });
       });
     });
     
@@ -129,6 +181,9 @@ export const SocketProvider = ({ children }) => {
       socketInstance.off('connect_error');
       socketInstance.off('reconnect');
       socketInstance.off('reconnect_error');
+      socketInstance.off('reconnect_attempt');
+      socketInstance.off('ping');
+      socketInstance.off('pong');
       
       // Bağlantıyı kapat
       socketInstance.disconnect();
