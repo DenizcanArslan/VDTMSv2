@@ -832,32 +832,103 @@ export default function SortableSlot({
                   className="text-xs border border-gray-200 rounded-md  px-2 py-0.5 lg:w-24 xl:w-36 focus:outline-none focus:ring-1 focus:ring-blue-500 text-green-500 font-bold"
                   value={slot.driverStartNote || ''}
                   onChange={async (e) => {
-                    // Lokal state'i güncelle
+                    const newValue = e.target.value;
+                    console.log(`Updating start time: ${slot.driverStartNote} -> ${newValue}`);
+                    
+                    // Kullanıcının aktif olarak bu alanda yazdığını belirten bir flag ekleyelim
+                    if (!window.activeInputSlots) {
+                      window.activeInputSlots = {};
+                    }
+                    
+                    // Kullanıcının bu slota aktif olarak yazdığını işaretle
+                    window.activeInputSlots[slot.id] = Date.now();
+                    
+                    // 5 saniye boyunca socket güncellemelerini görmezden gel
+                    // Bu süre boyunca gelen socket güncellemeleri bu slot için işlenmeyecek (useRealTimeUpdates.js'te kontrol edilecek)
+                    
+                    // Lokal state'i hemen güncelle - bu kullanıcı deneyimi için kritik
                     dispatch(
                       updateSlotDriverStartNote({
                         dateStr,
                         slotId: slot.id,
-                        driverStartNote: e.target.value,
+                        driverStartNote: newValue,
                       })
                     );
                     
-                    // API çağrısı ile veritabanını güncelle
-                    try {
-                      const response = await fetch(`/api/planning/slots/${slot.id}/driver-start-note`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                          driverStartNote: e.target.value,
-                          date: dateStr // Tarih bilgisini gönder
-                        }),
-                      });
-                      
-                      if (!response.ok) {
-                        throw new Error('Failed to update driver start note');
+                    // Performans optimizasyonu: Eğer sonraki 1 saniye içinde değişiklik yapılmazsa API'ye gönder
+                    // Bu sayede kullanıcı yazma işlemini bitirene kadar API çağrısı yapılmaz
+                    if (window.driverStartNoteTimeouts && window.driverStartNoteTimeouts[slot.id]) {
+                      clearTimeout(window.driverStartNoteTimeouts[slot.id]);
+                    }
+                    
+                    if (!window.driverStartNoteTimeouts) {
+                      window.driverStartNoteTimeouts = {};
+                    }
+                    
+                    // Input elementine bir sınıf ekleyerek yazma durumunu göster
+                    const inputElement = e.target;
+                    inputElement.classList.add('border-yellow-400');
+                    
+                    // Gecikmeyi 1000ms (1 saniye) olarak ayarla - kullanıcı yazma işlemi tamamlandıktan sonra API'yi çağır
+                    window.driverStartNoteTimeouts[slot.id] = setTimeout(async () => {
+                      try {
+                        // API çağrısını yap - değer yazma işlemi tamamlandığında
+                        const response = await fetch(`/api/planning/slots/${slot.id}/driver-start-note`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            driverStartNote: newValue,
+                            date: dateStr // Tarih bilgisini gönder
+                          }),
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Failed to update driver start note');
+                        }
+                        
+                        // API çağrısı tamamlandığında, kullanıcının aktif olarak yazmadığını işaretle
+                        // Ancak 2 saniye daha bekle - olası son düzenlemeler için
+                        setTimeout(() => {
+                          if (window.activeInputSlots && window.activeInputSlots[slot.id]) {
+                            delete window.activeInputSlots[slot.id];
+                            console.log(`Kullanıcı ${slot.id} slotunda artık yazmıyor`);
+                          }
+                        }, 2000);
+                        
+                        // Başarılı olduğunda visual feedback'i kaldır
+                        inputElement.classList.remove('border-yellow-400');
+                        inputElement.classList.add('border-green-400');
+                        
+                        // 500ms sonra normal hale geri dön
+                        setTimeout(() => {
+                          inputElement.classList.remove('border-green-400');
+                        }, 500);
+                        
+                        // Timeout'u temizle
+                        delete window.driverStartNoteTimeouts[slot.id];
+                      } catch (error) {
+                        // Hata durumunda kırmızı feedback göster
+                        inputElement.classList.remove('border-yellow-400');
+                        inputElement.classList.add('border-red-400');
+                        
+                        // 500ms sonra normal hale geri dön
+                        setTimeout(() => {
+                          inputElement.classList.remove('border-red-400');
+                        }, 500);
+                        
+                        console.error('Error updating driver start note:', error);
+                        toast.error('Failed to update driver start note');
                       }
-                    } catch (error) {
-                      console.error('Error updating driver start note:', error);
-                      toast.error('Failed to update driver start note');
+                    }, 1000); // 1000ms (1 saniye) debounce - kullanıcı bir değişiklik yapmayı bitirene kadar bekle
+                  }}
+                  // Kullanıcı input'tan ayrıldığında (focus'u kaybettiğinde) işlem tamamlandı olarak değerlendir
+                  onBlur={() => {
+                    if (window.activeInputSlots && window.activeInputSlots[slot.id]) {
+                      // Kullanıcı artık bu alana yazmıyor, 2 saniye sonra socket güncellemelerini kabul etmeye devam et
+                      setTimeout(() => {
+                        delete window.activeInputSlots[slot.id];
+                        console.log(`Kullanıcı ${slot.id} slotundan focus'u kaybetti, artık yazmıyor`);
+                      }, 2000);
                     }
                   }}
                 />

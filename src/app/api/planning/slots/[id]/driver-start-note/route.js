@@ -1,59 +1,66 @@
 import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
 import { sendSocketNotification } from '@/lib/websocket';
-
-export const dynamic = 'force-dynamic';
 
 export async function PUT(request, { params }) {
   try {
-    const slotId = parseInt(params.id);
-    const { driverStartNote, date } = await request.json();
-
-    // Slot'u güncelle
-    const updatedSlot = await prisma.planningSlot.update({
-      where: { id: slotId },
-      data: { driverStartNote },
-      include: {
-        driver: true,
-        truck: true,
-        transports: {
-          include: {
-            transport: {
-              include: {
-                client: true,
-                pickUpQuay: true,
-                dropOffQuay: true,
-                destinations: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    // Socket.IO bildirimi gönder
-    console.log('Driver start note güncelleme bildirimi hazırlanıyor...');
-    try {
-      // Socket.IO bildirimi göndermeyi dene - shared implementation kullanarak
-      await sendSocketNotification('slot:update', {
-        ...updatedSlot,
-        date: date,
-        updateType: 'driver-start-note'
-      });
-      console.log('Driver start note güncelleme bildirimi başarıyla gönderildi');
-    } catch (wsError) {
-      console.error('Driver start note güncelleme bildirimi gönderilirken hata:', wsError);
-      // Hata ayrıntılarını logla, ancak API'nin normal işleyişini engelleme
-      console.log('Socket.IO bildirimi başarısız oldu, ancak API işlemine devam ediliyor');
+    // Parse the request body
+    const body = await request.json();
+    const { driverStartNote, date } = body;
+    const slotId = parseInt(params.id, 10);
+    
+    if (isNaN(slotId)) {
+      console.error(`Invalid slot ID: ${params.id}`);
+      return Response.json({ error: 'Invalid slot ID' }, { status: 400 });
     }
 
-    // Socket.IO bildiriminin başarısız olmasından bağımsız olarak güncellenmiş veriyi dön
-    return NextResponse.json(updatedSlot);
+    if (!date) {
+      console.error('Missing date in request body');
+      return Response.json({ error: 'Missing date' }, { status: 400 });
+    }
+
+    console.log(`Updating driver start note for slot ${slotId} to "${driverStartNote}" for date ${date}`);
+
+    // Update the slot
+    const updatedSlot = await prisma.planningSlot.update({
+      where: {
+        id: slotId,
+      },
+      data: {
+        driverStartNote: driverStartNote,
+      },
+      include: {
+        transports: {
+          include: {
+            transport: true,
+          },
+        },
+      },
+    });
+
+    // Send socket notification to update other clients
+    try {
+      // Doğru format için kesinlikle şu alanları içermeli:
+      const socketData = {
+        slotId: slotId,
+        id: slotId, // Geriye uyumluluk için hem id hem slotId gönder
+        driverStartNote: driverStartNote,
+        date: date,
+        updateType: 'driver-start-note'
+      };
+
+      console.log('Sending socket notification with data:', socketData);
+      
+      // Socket olayını gönder
+      await sendSocketNotification('planning:slot:updated', socketData);
+      console.log('Socket notification sent successfully');
+    } catch (socketError) {
+      console.error('Error sending socket notification:', socketError);
+      // Socket hatası durumunda işleme devam et ama hatayı logla
+    }
+
+    return Response.json(updatedSlot);
   } catch (error) {
     console.error('Error updating driver start note:', error);
-    return NextResponse.json(
-      { error: 'Failed to update driver start note' },
-      { status: 500 }
-    );
+    return Response.json({ error: 'Failed to update driver start note' }, { status: 500 });
   }
 } 

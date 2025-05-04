@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }) => {
     
     // Socket.IO instance oluştur - Self-signed sertifika desteğiyle
     const socketInstance = io(socketUrl, {
-      transports: ['websocket', 'polling'], // Önce websocket dene, sonra polling
+      transports: ['polling', 'websocket'], // Önce polling dene, sonra websocket
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -44,6 +44,13 @@ export const SocketProvider = ({ children }) => {
       forceNew: true // Yeni bir bağlantı zorla
     });
     
+    console.log('Socket.IO instance created with configuration:', {
+      url: socketUrl,
+      transports: ['polling', 'websocket'],
+      withCredentials: true,
+      forceNew: true
+    });
+    
     // Bağlantı olaylarını dinle
     socketInstance.on('connect', () => {
       console.log('Socket.IO connected! Socket ID:', socketInstance.id);
@@ -51,7 +58,7 @@ export const SocketProvider = ({ children }) => {
       reconnectAttemptsRef.current = 0;
       
       // Başarılı bağlantı bildirimi
-      toast.success('Canlı güncellemeler etkinleştirildi', { autoClose: 2000 });
+      toast.success('Live updates enabled', { autoClose: 2000 });
       
       // Transport ve slot güncellemelerine otomatik olarak abone ol
       socketInstance.emit('transport:subscribe');

@@ -27,7 +27,7 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true
   },
-  transports: ['polling'],
+  transports: ['polling', 'websocket'],
   allowEIO3: true, // Socket.IO 2.x istemcileri için eski protokol desteği
 });
 
@@ -77,40 +77,97 @@ io.on('connection', (socket) => {
   });
 });
 
-// API endpoint - bildirim gönder
+// Debounce mekanizması için slot-driver-note-updates nesnesi oluştur
+const slotDriverNoteDebounce = {};
+
+// API notifikasyon ve slot güncellemeleri için POST endpoint
 app.post('/api/notify', async (req, res) => {
   try {
     const { event, data } = req.body;
-    
-    if (!event || !data) {
-      return res.status(400).json({ success: false, message: 'Event ve data alanları zorunludur' });
-    }
-    
-    // Event formatı: "transport:create", "slot:update" gibi
-    const [type, action] = event.split(':');
-    
-    console.log(`Bildirim alındı: ${type}/${action}`, {
+    console.log('Bildirim alındı:', event, {
       event,
-      dataType: typeof data, 
-      hasSlots: !!data.slots,
-      slotCount: data.slots ? Object.values(data.slots).flat().length : 0
+      dataType: typeof data,
+      data: JSON.stringify(data).substring(0, 200) // Veriyi logla (maksimum 200 karakter)
     });
-    
-    // Özel olaylar için tüm kanallara bildirim gönder
-    const globalEvents = ['slots:reorder', 'driver:assign', 'truck:assign'];
-    if (globalEvents.includes(event)) {
-      console.log(`${event} olayı tüm bağlantılara gönderiliyor...`);
-      // Tüm bağlantılara bildirim gönder
-      io.emit(event, data);
-    } else {
-      // İlgili kanalda bildirim gönder
-      io.to(`${type}-updates`).emit(event, data);
+
+    // Driver start note güncellemeleri için özel işlem
+    if (event === 'planning:slot:updated' && data?.updateType === 'driver-start-note') {
+      // id veya slotId'yi kontrol et - her ikisi de olabilir
+      const slotId = data.slotId || data.id;
+      const driverStartNote = data.driverStartNote; 
+      const date = data.date;
+
+      if (!slotId) {
+        console.error('Driver start note güncellemesi için slotId eksik:', data);
+        return res.status(400).json({ error: 'Missing slotId in driver start note update' });
+      }
+
+      console.log('Driver start note güncellemesi alındı:', {
+        slotId,
+        driverStartNote,
+        date,
+        rawData: data
+      });
+      
+      // Debounce işlemini uygula - aynı slot için önceki zamanlayıcıyı temizle
+      if (slotDriverNoteDebounce[slotId]) {
+        clearTimeout(slotDriverNoteDebounce[slotId]);
+      }
+      
+      // DAHA AZ BEKLET: 500ms debounce uygula - kullanıcının yazma işlemini bitirmesini bekle
+      // Bu asıl uygulamamızda 1 saniyeydi, test için 500ms yapalım
+      slotDriverNoteDebounce[slotId] = setTimeout(() => {
+        // Standart slot güncelleme eventini emisyon yap
+        // Önemli: Client tarafında bu formata uygun veri yapısını bekleyecek
+        io.to('slot-updates').emit('slot:update', {
+          id: slotId, // Client'ın beklediği formatta ID
+          driverStartNote, 
+          date,
+          updateType: 'driver-start-note'
+        });
+        
+        console.log(`Driver start note güncellemesi yayınlandı: Slot #${slotId}, Değer: "${driverStartNote}"`);
+        
+        // Timeout referansını temizle
+        delete slotDriverNoteDebounce[slotId];
+      }, 500);
+      
+      return res.json({ success: true });
     }
     
-    return res.json({ success: true, message: `Socket.IO mesajı gönderildi: ${type}/${action}` });
+    // Transport, slot, ve diğer event tipleri için ayrı ayrı kanallardan yayın yap
+    if (event.startsWith('transport:')) {
+      io.to('transport-updates').emit(event, data);
+    } else if (event.startsWith('slot:')) {
+      io.to('slot-updates').emit(event, data);
+    } else if (event.startsWith('driver:')) {
+      io.to('slot-updates').emit(event, data);
+    } else if (event.startsWith('truck:')) {
+      io.to('slot-updates').emit(event, data);
+    } else if (event.startsWith('planning:')) {
+      // planning:slot:updated eventi özel işleme için format dönüşümü
+      if (event === 'planning:slot:updated') {
+        console.log('Slot güncelleme eventi alındı, slot:update olarak iletiyor', data);
+        
+        // DÜZELTME: slot:update formatını düzelt - ID alanını garanti et
+        const fixedData = { ...data };
+        if (fixedData.slotId && !fixedData.id) {
+          fixedData.id = fixedData.slotId;
+        }
+        
+        io.to('slot-updates').emit('slot:update', fixedData);
+      } else {
+        io.to('slot-updates').emit('planning:update', data);
+      }
+    } else {
+      // Standart generic event
+      io.emit(event, data);
+    }
+
+    res.json({ success: true });
   } catch (error) {
-    console.error('API hatası:', error);
-    return res.status(500).json({ success: false, message: `Hata: ${error.message}` });
+    console.error('Bildirim gönderirken hata oluştu:', error);
+    res.status(500).json({ error: 'Bildirim gönderilemedi' });
   }
 });
 

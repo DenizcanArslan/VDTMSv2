@@ -495,31 +495,50 @@ const useRealTimeUpdates = () => {
       activeListeners.current.slotUpdate = on('slot:update', async (data) => {
         console.log('🔄 Slot güncelleme olayı alındı:', {
           id: data?.id,
+          slotId: data?.slotId,
           updateType: data?.updateType,
-          date: data?.date
+          date: data?.date,
+          data: JSON.stringify(data).substring(0, 100) // İlk 100 karakteri logla
         });
         
         try {
-          // Veri doğrulama
-          if (!data || !data.id) {
-            console.error('Geçersiz slot verisi alındı:', data);
+          // Veri doğrulama - id veya slotId'den birini kullan
+          const slotId = data?.id || data?.slotId; 
+          if (!slotId) {
+            console.error('🚨 Geçersiz slot verisi alındı, ID yok:', data);
             return;
           }
           
+          // Standardize data - Eksik property'leri doldur
+          const normalizedData = {
+            ...data,
+            id: slotId, // id propertysi mutlaka olmalı
+          };
+          
           // Slot state'i güncelleme
-          dispatch(updateSlot(data));
-          console.log('Redux updateSlot action dispatched successfully for:', data?.id);
+          dispatch(updateSlot(normalizedData));
+          console.log('✅ Redux updateSlot action başarıyla dispatch edildi:', slotId);
           
           // Özel güncelleme tiplerini kontrol et - driver-start-note için
           if (data.updateType === 'driver-start-note') {
-            console.log('Start time güncelleme mesajı alındı:', {
-              slotId: data.id,
+            console.log('📝 Start time güncelleme mesajı alındı:', {
+              slotId: slotId,
               driverStartNote: data.driverStartNote,
               date: data.date
             });
             
-            if (!data.id || !data.date) {
-              console.warn('Start time güncellemesi için eksik veri:', data);
+            // ÖNEMLİ: Kullanıcı bu alana aktif olarak yazıyorsa socket güncellemesini kabul etme
+            if (typeof window !== 'undefined' && window.activeInputSlots && window.activeInputSlots[slotId]) {
+              const activeTimestamp = window.activeInputSlots[slotId];
+              const now = Date.now();
+              const secondsSinceActive = (now - activeTimestamp) / 1000;
+              
+              console.log(`⚠️ Kullanıcı ${slotId} numaralı slota aktif olarak yazıyor (${secondsSinceActive.toFixed(1)} sn). Socket güncellemesi reddedildi.`);
+              return; // Socket güncellemesini işleme - kullanıcının yazdığı veri korunsun
+            }
+            
+            if (!data.date) {
+              console.warn('⚠️ Start time güncellemesi için eksik tarih:', data);
               return;
             }
             
@@ -537,28 +556,21 @@ const useRealTimeUpdates = () => {
               dateStr = startOfDay(new Date()).toISOString();
             }
             
-            console.log('Kullanılan tarih:', dateStr);
+            console.log('📅 Kullanılan tarih:', dateStr);
+            
+            // Daha az beklet: Anlık güncelleme yap - kullanıcı aktif olarak bu alanda yazmıyorsa
+            // Debounce'ı kaldırıyoruz çünkü kullanıcı yazmıyorsa hemen güncellenmeli
+            // if (window.driverNoteUpdateDebounce) clearTimeout(window.driverNoteUpdateDebounce);
             
             // Doğrudan planningSlice'deki updateSlotDriverStartNote action'ını kullan
             dispatch(updateSlotDriverStartNote({
               dateStr: dateStr,
-              slotId: data.id,
-              driverStartNote: data.driverStartNote
+              slotId: slotId,
+              driverStartNote: data.driverStartNote || '' // Silme durumlarında boş string kullan
             }));
-            console.log('Redux updateSlotDriverStartNote action dispatched successfully');
+            console.log('✅ Redux updateSlotDriverStartNote action başarıyla dispatch edildi');
             
-            // Veri güncellemesinin de gerçekleştiğinden emin olmak için veriyi de güncelle
-            debouncedFetchAndUpdate();
-            
-            // DOM eventini manuel olarak tetikle
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('force-planning-update', { 
-                detail: { event: 'slot:update', data: data }
-              }));
-              console.log('force-planning-update DOM event dispatched');
-            }
-            
-            // Sadece planning sayfasındaysa bildirim göster
+            // Sadece planning sayfasındaysa bildirim göster - gerekli değilse kaldırılabilir
             if (isInPlanningPage) {
               showToastDebounced('Start time updated');
             }

@@ -578,134 +578,242 @@ export const planningSlice = createSlice({
       });
     },
     updateTransportsAndSlots(state, action) {
-      const { transportUpdates, slotUpdates, type } = action.payload;
-      
-      // Transport güncellemeleri
-      if (transportUpdates && transportUpdates.length > 0) {
-        if (type === 'add') {
-          // Yeni transport ekle
-          transportUpdates.forEach(transport => {
-            if (!state.transports.some(t => t.id === transport.id)) {
-              state.transports.push(transport);
-            }
-          });
-        } else if (type === 'update') {
-          // Transport güncelle
-          transportUpdates.forEach(updatedTransport => {
-            console.log('Transport güncelleniyor:', {
-              id: updatedTransport.id,
-              slotAssignments: updatedTransport.slotAssignments,
-              destinations: updatedTransport.destinations
+      try {
+        const { transportUpdates, slotUpdates, type } = action.payload;
+        console.log('🔄 updateTransportsAndSlots çalıştırılıyor:', {
+          type,
+          transportCount: transportUpdates?.length || 0,
+          slotUpdatesType: typeof slotUpdates
+        });
+        
+        // Transport güncellemeleri
+        if (transportUpdates && transportUpdates.length > 0) {
+          if (type === 'add') {
+            // Yeni transport ekle
+            transportUpdates.forEach(transport => {
+              if (!state.transports.some(t => t.id === transport.id)) {
+                state.transports.push(transport);
+              }
             });
-            
-            // Mevcut transport'u bul
-            const existingIndex = state.transports.findIndex(t => t.id === updatedTransport.id);
-            
-            if (existingIndex !== -1) {
+          } else if (type === 'update' || type === 'forceUpdate') {
+            // Transport güncelle
+            transportUpdates.forEach(updatedTransport => {
+              console.log('Transport güncelleniyor:', {
+                id: updatedTransport.id,
+                slotAssignments: updatedTransport.slotAssignments?.length || 0,
+                destinations: updatedTransport.destinations?.length || 0
+              });
+              
               // Mevcut transport'u bul
-              const existingTransport = state.transports[existingIndex];
+              const existingIndex = state.transports.findIndex(t => t.id === updatedTransport.id);
               
-              // Önemli: Transportu komple güncelle
-              state.transports[existingIndex] = {
-                ...updatedTransport,
-                // Socket.IO'ten gelmeyen kritik alanları koru
-                notes: updatedTransport.notes || existingTransport.notes,
-                // Gelen yeni veriler varsa onları kullan, yoksa mevcut verileri koru
-                destinations: updatedTransport.destinations || existingTransport.destinations,
-                slotAssignments: updatedTransport.slotAssignments || existingTransport.slotAssignments
-              };
+              if (existingIndex !== -1) {
+                // Mevcut transport'u bul
+                const existingTransport = state.transports[existingIndex];
+                
+                // Önemli: Transportu komple güncelle
+                state.transports[existingIndex] = {
+                  ...updatedTransport,
+                  // Socket.IO'ten gelmeyen kritik alanları koru
+                  notes: updatedTransport.notes || existingTransport.notes,
+                  // Gelen yeni veriler varsa onları kullan, yoksa mevcut verileri koru
+                  destinations: updatedTransport.destinations || existingTransport.destinations,
+                  slotAssignments: updatedTransport.slotAssignments || existingTransport.slotAssignments
+                };
+                
+                // Transport'u tüm slotlardan kaldır, sonra güncel slotAssignments'a göre ekleriz
+                Object.keys(state.slots).forEach(dateStr => {
+                  state.slots[dateStr] = state.slots[dateStr].map(slot => ({
+                    ...slot,
+                    transports: slot.transports.filter(ts => ts.transport?.id !== updatedTransport.id)
+                  }));
+                });
+                
+                // Transport'u yeni slot atamalarına ekle
+                if (updatedTransport.slotAssignments && updatedTransport.slotAssignments.length > 0) {
+                  updatedTransport.slotAssignments.forEach(assignment => {
+                    const assignmentDateStr = startOfDay(new Date(assignment.date)).toISOString();
+                    
+                    if (state.slots[assignmentDateStr]) {
+                      // Slot'u bul ve transport'u ekle
+                      state.slots[assignmentDateStr] = state.slots[assignmentDateStr].map(slot => {
+                        if (slot.id === assignment.slotId) {
+                          return {
+                            ...slot,
+                            transports: [...slot.transports.filter(ts => ts.transport?.id !== updatedTransport.id), {
+                              transportId: updatedTransport.id,
+                              slotId: slot.id,
+                              date: assignmentDateStr,
+                              slotOrder: assignment.slotOrder || 0,
+                              transport: state.transports[existingIndex]
+                            }]
+                          };
+                        }
+                        return slot;
+                      });
+                    }
+                  });
+                }
+              } else {
+                // Eğer transport henüz state'de yoksa ekle
+                state.transports.push(updatedTransport);
+              }
+            });
+          } else if (type === 'remove') {
+            // Transport'u kaldır
+            transportUpdates.forEach(transport => {
+              state.transports = state.transports.filter(t => t.id !== transport.id);
               
-              // Transport'u tüm slotlardan kaldır, sonra güncel slotAssignments'a göre ekleriz
+              // Slot içindeki transport referanslarını da kaldır
               Object.keys(state.slots).forEach(dateStr => {
                 state.slots[dateStr] = state.slots[dateStr].map(slot => ({
                   ...slot,
-                  transports: slot.transports.filter(ts => ts.transport?.id !== updatedTransport.id)
+                  transports: slot.transports.filter(ts => ts.transport?.id !== transport.id)
                 }));
               });
+            });
+          }
+        }
+        
+        // Slot güncellemeleri - API'den gelen veri yapısına göre işlem yap
+        console.log('Slot updates check:', {
+          isObject: typeof slotUpdates === 'object', 
+          isArray: Array.isArray(slotUpdates),
+          hasSlotUpdates: !!slotUpdates,
+          slotUpdateKeys: slotUpdates ? Object.keys(slotUpdates).length : 0
+        });
+        
+        // 1. Durum: slotUpdates bir obje olarak gelmiş (API'den)
+        // Örnek: { "2023-05-01T00:00:00.000Z": [slot1, slot2, ...] }
+        if (slotUpdates && typeof slotUpdates === 'object' && !Array.isArray(slotUpdates)) {
+          console.log('Processing object-format slot updates with keys:', Object.keys(slotUpdates));
+          
+          if (type === 'forceUpdate') {
+            // Doğrudan tüm slot verilerini değiştir
+            console.log('Tüm slot verileri zorla değiştiriliyor', {
+              mevcut: Object.keys(state.slots || {}).length,
+              yeni: Object.keys(slotUpdates).length
+            });
+            
+            // Doğrudan atama
+            state.slots = { ...slotUpdates };
+          } else {
+            // Her bir tarih anahtarı için slotları güncelle
+            Object.keys(slotUpdates).forEach(dateStr => {
+              const slotsForDate = slotUpdates[dateStr];
               
-              // Transport'u yeni slot atamalarına ekle
-              if (updatedTransport.slotAssignments && updatedTransport.slotAssignments.length > 0) {
-                updatedTransport.slotAssignments.forEach(assignment => {
-                  const assignmentDateStr = startOfDay(new Date(assignment.date)).toISOString();
-                  
-                  if (state.slots[assignmentDateStr]) {
-                    // Slot'u bul ve transport'u ekle
-                    state.slots[assignmentDateStr] = state.slots[assignmentDateStr].map(slot => {
-                      if (slot.id === assignment.slotId) {
-                        return {
-                          ...slot,
-                          transports: [...slot.transports.filter(ts => ts.transport?.id !== updatedTransport.id), {
-                            transportId: updatedTransport.id,
-                            slotId: slot.id,
-                            date: assignmentDateStr,
-                            slotOrder: assignment.slotOrder || 0,
-                            transport: state.transports[existingIndex]
-                          }]
-                        };
-                      }
-                      return slot;
-                    });
-                  }
+              if (!Array.isArray(slotsForDate)) {
+                console.warn(`${dateStr} için slot verisi dizi değil:`, slotsForDate);
+                return;
+              }
+              
+              console.log(`${dateStr} için ${slotsForDate.length} slot güncelleniyor...`);
+              
+              // Tarih anahtarı için slots dizisi yoksa oluştur
+              if (!state.slots[dateStr]) {
+                state.slots[dateStr] = [];
+              }
+              
+              // Slotları güncelle veya ekle
+              slotsForDate.forEach(updatedSlot => {
+                const existingIndex = state.slots[dateStr].findIndex(s => s.id === updatedSlot.id);
+                
+                if (existingIndex !== -1) {
+                  // Mevcut slot'u güncelle, transport'ları koru
+                  state.slots[dateStr][existingIndex] = {
+                    ...state.slots[dateStr][existingIndex],
+                    ...updatedSlot,
+                    transports: updatedSlot.transports || state.slots[dateStr][existingIndex].transports
+                  };
+                } else {
+                  // Yeni slot ekle
+                  state.slots[dateStr].push({
+                    ...updatedSlot,
+                    transports: updatedSlot.transports || []
+                  });
+                }
+              });
+              
+              // Sıralama düzenini kontrol et
+              state.slots[dateStr].sort((a, b) => {
+                const aOrder = typeof a.order === 'number' ? a.order : 0;
+                const bOrder = typeof b.order === 'number' ? b.order : 0;
+                return aOrder - bOrder;
+              });
+            });
+          }
+          console.log('Slot güncellemesi tamamlandı, tarihler:', Object.keys(state.slots));
+        } 
+        // 2. Durum: slotUpdates bir dizi olarak gelmiş (Socket.IO'dan)
+        else if (slotUpdates && Array.isArray(slotUpdates)) {
+          console.log('Processing array-format slot updates with length:', slotUpdates.length);
+          
+          // Gelen verileri tarih bazında grupla
+          const slotsByDate = {};
+          
+          slotUpdates.forEach(slot => {
+            if (!slot.date) {
+              console.error('Slot için tarih bilgisi eksik:', slot);
+              return;
+            }
+            
+            const dateStr = startOfDay(new Date(slot.date)).toISOString();
+            
+            if (!slotsByDate[dateStr]) {
+              slotsByDate[dateStr] = [];
+            }
+            
+            slotsByDate[dateStr].push(slot);
+          });
+          
+          // Gruplandırılmış verileri state'e uygula
+          Object.keys(slotsByDate).forEach(dateStr => {
+            const slots = slotsByDate[dateStr];
+            
+            if (type === 'add') {
+              // Yeni slotlar ekle
+              if (!state.slots[dateStr]) {
+                state.slots[dateStr] = [];
+              }
+              
+              slots.forEach(slot => {
+                if (!state.slots[dateStr].some(s => s.id === slot.id)) {
+                  state.slots[dateStr].push({
+                    ...slot,
+                    transports: slot.transports || []
+                  });
+                }
+              });
+            } else if (type === 'update') {
+              // Mevcut slotları güncelle
+              if (state.slots[dateStr]) {
+                slots.forEach(updatedSlot => {
+                  state.slots[dateStr] = state.slots[dateStr].map(s => 
+                    s.id === updatedSlot.id 
+                      ? { 
+                          ...s, 
+                          ...updatedSlot,
+                          transports: updatedSlot.transports || s.transports 
+                        }
+                      : s
+                  );
                 });
               }
-            } else {
-              // Eğer transport henüz state'de yoksa ekle
-              state.transports.push(updatedTransport);
+            } else if (type === 'remove') {
+              // Slotları kaldır
+              if (state.slots[dateStr]) {
+                slots.forEach(slotToRemove => {
+                  state.slots[dateStr] = state.slots[dateStr].filter(s => s.id !== slotToRemove.id);
+                });
+              }
             }
           });
-        } else if (type === 'remove') {
-          // Transport'u kaldır
-          transportUpdates.forEach(transport => {
-            state.transports = state.transports.filter(t => t.id !== transport.id);
-            
-            // Slot içindeki transport referanslarını da kaldır
-            Object.keys(state.slots).forEach(dateStr => {
-              state.slots[dateStr] = state.slots[dateStr].map(slot => ({
-                ...slot,
-                transports: slot.transports.filter(ts => ts.transport?.id !== transport.id)
-              }));
-            });
-          });
-        }
-      }
-      
-      // Slot güncellemeleri
-      if (slotUpdates && slotUpdates.length > 0) {
-        slotUpdates.forEach(slot => {
-          const dateStr = startOfDay(new Date(slot.date)).toISOString();
           
-          if (type === 'add') {
-            // Yeni slot ekle
-            if (!state.slots[dateStr]) {
-              state.slots[dateStr] = [];
-            }
-            
-            if (!state.slots[dateStr].some(s => s.id === slot.id)) {
-              state.slots[dateStr].push({
-                ...slot,
-                transports: slot.transports || []
-              });
-            }
-          } else if (type === 'update') {
-            // Slot güncelle
-            if (state.slots[dateStr]) {
-              state.slots[dateStr] = state.slots[dateStr].map(s => 
-                s.id === slot.id 
-                  ? { 
-                      ...s, 
-                      ...slot,
-                      transports: slot.transports || s.transports 
-                    }
-                  : s
-              );
-            }
-          } else if (type === 'remove') {
-            // Slot'u kaldır
-            if (state.slots[dateStr]) {
-              state.slots[dateStr] = state.slots[dateStr].filter(s => s.id !== slot.id);
-            }
-          }
-        });
+          console.log('Array-format slot güncellemesi tamamlandı, tarihler:', Object.keys(slotsByDate));
+        }
+      } catch (error) {
+        console.error('updateTransportsAndSlots reducer hatası:', error);
+        console.error('Hata detayı:', error.stack);
       }
     },
     updateSlotTransports: (state, action) => {
@@ -840,8 +948,10 @@ export const planningSlice = createSlice({
           
           if (slotIndex !== -1) {
             console.log(`PLANNING REDUCER: Slot bulundu, tarih: ${dateStr}, slot ID: ${slotId}, eski değer: ${state.slots[dateStr][slotIndex].driverStartNote}, yeni değer: ${driverStartNote}`);
-            // Driver start note alanını güncelle
-            state.slots[dateStr][slotIndex].driverStartNote = driverStartNote;
+            
+            // Driver start note alanını güncelle - undefined/null durumlarında boş string kullan
+            state.slots[dateStr][slotIndex].driverStartNote = driverStartNote === null || driverStartNote === undefined ? '' : driverStartNote;
+            
             console.log(`PLANNING REDUCER: Güncelleme tamamlandı, yeni değer: ${state.slots[dateStr][slotIndex].driverStartNote}`);
           } else {
             console.warn(`PLANNING REDUCER: Slot bulunamadı, tarih: ${dateStr}, slot ID: ${slotId}`);

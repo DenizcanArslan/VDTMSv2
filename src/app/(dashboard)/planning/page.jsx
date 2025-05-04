@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
-import { fetchPlanningData, setSelectedDate } from '@/redux/features/planningSlice';
+import { fetchPlanningData, setSelectedDate, updateTransportsAndSlots } from '@/redux/features/planningSlice';
 import PlanningCalendar from '@/components/planning/PlanningCalendar';
 import TransportsList from '@/components/planning/TransportsList';
 import CompactDayView from '@/components/planning/CompactDayView';
-import { FiMaximize2, FiMinimize2, FiCalendar, FiScissors, FiSearch, FiX, FiPause, FiMapPin, FiClock } from 'react-icons/fi';
+import { FiMaximize2, FiMinimize2, FiCalendar, FiScissors, FiSearch, FiX, FiPause, FiMapPin, FiClock, FiRefreshCw } from 'react-icons/fi';
 import { format, startOfDay, parseISO } from 'date-fns';
 import Link from 'next/link';
 import TrailerLocationsModal from '@/components/planning/TrailerLocationsModal';
@@ -29,16 +29,68 @@ const PlanningPage = () => {
   const [isTrailerLocationsModalOpen, setIsTrailerLocationsModalOpen] = useState(false);
   const [isSortingSlots, setIsSortingSlots] = useState(false);
   const [isSortConfirmModalOpen, setIsSortConfirmModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Socket.IO hook'unu başlat
   useRealTimeUpdates();
+  
+  // Force veri yenilemeyi garantiye al
+  const fetchPlanningDataWithCacheBust = async () => {
+    try {
+      console.log('Planning verileri manuel olarak fetch ediliyor...');
+      setIsRefreshing(true);
+      
+      // Cache'i engellemek için timestamp ekle
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/planning?nocache=${timestamp}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Planning verileri alınamadı');
+      }
+      
+      const data = await response.json();
+      console.log('Planning verileri alındı:', {
+        transportCount: data.transports?.length || 0,
+        slotDates: Object.keys(data.slots || {})
+      });
+      
+      // Redux store'u doğrudan güncelle
+      dispatch(updateTransportsAndSlots({
+        transportUpdates: data.transports || [],
+        slotUpdates: data.slots || {},
+        type: 'forceUpdate'
+      }));
+      
+      toast.success('Data updated successfully', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+      
+    } catch (error) {
+      console.error('Planning verileri yüklenirken hata:', error);
+      toast.error('Failed to load planning data');
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
   
   // Native Socket.IO kodu artık kullanılmıyor
   // Tüm gerçek zamanlı güncellemeler socket.io üzerinden geliyor
   
   useEffect(() => {
-    console.log('Planning Page - Fetching Data');
+    console.log('Planning Page - Sayfa yüklendiğinde çalışıyor');
+    
+    // First, load data with the standard Redux thunk
     dispatch(fetchPlanningData());
+    
+    // Then, fetch with cache busting to ensure fresh data
+    fetchPlanningDataWithCacheBust();
     
     // Sayfa yüklendikten sonra, localStorage'dan kaydedilmiş tarihi kontrol et
     const savedDate = localStorage.getItem('planningSelectedDate');
@@ -47,7 +99,25 @@ const PlanningPage = () => {
       dispatch(setSelectedDate(savedDate));
       localStorage.removeItem('planningSelectedDate');
     }
+    
+    // Event listener ekle - manuel olarak veri yenilemek için
+    const handleDataRefresh = () => {
+      console.log('Manuel veri yenileme istendi');
+      fetchPlanningDataWithCacheBust();
+    };
+    
+    window.addEventListener('manual-refresh-planning', handleDataRefresh);
+    
+    return () => {
+      window.removeEventListener('manual-refresh-planning', handleDataRefresh);
+    };
   }, [dispatch]);
+
+  // Manuel yenileme işlemi
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    await fetchPlanningDataWithCacheBust();
+  };
 
   // Modal açma işlevi
   const openSortModal = () => {
@@ -80,8 +150,8 @@ const PlanningPage = () => {
       
       toast.success('Slots sorted successfully by first destination time!');
       
-      // Redux store'u güncelle, ancak sayfa yenileme yapma
-      dispatch(fetchPlanningData());
+      // Doğrudan taze veri al - standart fetchPlanningData yerine
+      await fetchPlanningDataWithCacheBust();
       
     } catch (error) {
       console.error("Failed to sort slots:", error);
@@ -390,6 +460,16 @@ const PlanningPage = () => {
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Manuel Yenileme Butonu */}
+          <button 
+            onClick={handleManualRefresh}
+            className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 h-8 min-w-[100px]"
+            disabled={isRefreshing}
+          >
+            <FiRefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+          </button>
+          
           {/* Slot Sıralama Butonu */}
           <button 
             onClick={openSortModal}
