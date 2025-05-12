@@ -34,19 +34,21 @@ export const SocketProvider = ({ children }) => {
     
     // Socket.IO instance oluştur - Self-signed sertifika desteğiyle
     const socketInstance = io(socketUrl, {
-      transports: ['polling', 'websocket'], // Önce polling dene, sonra websocket
+      transports: ['websocket', 'polling'], // Önce websocket dene, sonra polling
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
       rejectUnauthorized: false, // Self-signed sertifikaları kabul et
       withCredentials: true,
-      forceNew: true // Yeni bir bağlantı zorla
+      forceNew: true, // Yeni bir bağlantı zorla
+      path: '/socket.io/',
+      secure: true
     });
     
     console.log('Socket.IO instance created with configuration:', {
       url: socketUrl,
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       withCredentials: true,
       forceNew: true
     });

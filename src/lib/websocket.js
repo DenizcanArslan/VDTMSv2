@@ -14,14 +14,18 @@ export function getSocketServerUrl() {
     return configuredUrl;
   }
   
-  // Geliştirme ortamında localhost ile çalış
+  // Development ortamında EC2'deki WebSocket sunucusuna bağlan
   const isDevelopment = process.env.NODE_ENV === 'development' || 
                        !process.env.NODE_ENV || 
                        window?.location?.hostname === 'localhost';
   
   if (isDevelopment) {
-    console.log('Development mode: Using localhost for WebSocket server');
-    return 'http://localhost:3001/api/notify';
+    console.log('Development mode: Using EC2 WebSocket server');
+    return 'https://vandijle.duckdns.org:3001/api/notify';
+    
+    // Local WebSocket sunucusu (yorum satırına alındı)
+    // console.log('Development mode: Using localhost for WebSocket server');
+    // return 'http://localhost:3001/api/notify';
   }
   
   // Production ortamı için DuckDNS domain
@@ -42,19 +46,23 @@ export function getSocketClientUrl() {
       return configuredUrl;
     }
     
-    // Geliştirme ortamında localhost ile çalış
+    // Development ortamında EC2'deki WebSocket sunucusuna bağlan
     const isDevelopment = process.env.NODE_ENV === 'development' || 
                          !process.env.NODE_ENV || 
                          window?.location?.hostname === 'localhost';
     
     if (isDevelopment) {
-      console.log('Development mode: Using localhost for WebSocket client');
-      return 'http://localhost:3001';
+      console.log('Development mode: Using EC2 WebSocket server');
+      return 'wss://vandijle.duckdns.org:3001';
+      
+      // Local WebSocket sunucusu (yorum satırına alındı)
+      // console.log('Development mode: Using localhost for WebSocket client');
+      // return 'http://localhost:3001';
     }
     
     // Production ortamı için DuckDNS domain
     console.log('Production mode: Using DuckDNS domain for WebSocket client');
-    return 'https://vandijle.duckdns.org:3001';
+    return 'wss://vandijle.duckdns.org:3001';
   } catch (error) {
     console.error('Error in getSocketClientUrl:', error);
     // Fallback to localhost

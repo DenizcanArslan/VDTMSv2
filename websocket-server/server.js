@@ -8,11 +8,12 @@ const { Pool } = require('pg');
 const app = express();
 
 // CORS yapılandırması
-const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
+const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000,https://vandijle.vercel.app').split(',');
 app.use(cors({
-  origin: frontendUrls, // Birden fazla origin'e izin ver
+  origin: frontendUrls,
   methods: ['GET', 'POST'],
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -23,12 +24,15 @@ const server = http.createServer(app);
 // Socket.IO sunucusu
 const io = new Server(server, {
   cors: {
-    origin: frontendUrls, // Birden fazla origin'e izin ver
+    origin: frontendUrls,
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
   },
-  transports: ['polling', 'websocket'],
-  allowEIO3: true, // Socket.IO 2.x istemcileri için eski protokol desteği
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // PostgreSQL veritabanı bağlantısı
