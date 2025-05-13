@@ -38,6 +38,10 @@ const fetchPlanningDataWithCacheBust = async (dispatch) => {
       type: 'forceUpdate'
     }
   });
+  
+  // Socket olaylarını izlemek için timestamp global değişkene kaydedelim
+  window._lastPlanningUpdateTimestamp = timestamp;
+  console.log('Planning data updated with timestamp:', timestamp);
 };
 
 export const SocketProvider = ({ children }) => {
@@ -46,6 +50,16 @@ export const SocketProvider = ({ children }) => {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const dispatch = useDispatch();
+  
+  // Son veri güncelleme zaman damgasını saklamak için bir ref
+  const lastUpdateTimestampRef = useRef(0);
+  
+  // Global window değişkenini başlat (eğer tarayıcıdaysak)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window._lastPlanningUpdateTimestamp = 0;
+    }
+  }, []);
 
   // Socket.IO bağlantısı kur
   useEffect(() => {
@@ -180,6 +194,32 @@ export const SocketProvider = ({ children }) => {
       console.log(`Socket.IO pong received (latency: ${latency}ms)`);
     });
     
+    // Veri değişikliklerini işleyen fonksiyon
+    const handleDataChange = async (data) => {
+      // Mevcut timestamp'i al
+      const currentTimestamp = Date.now();
+      const lastUpdateTimestamp = window._lastPlanningUpdateTimestamp || 0;
+      
+      // Son güncellemeden bu yana yeterli süre geçmiş mi kontrol et
+      // (çok sık güncelleme olmasını engeller)
+      const UPDATE_THROTTLE_MS = 500; // 500ms içinde bir güncelleme izin ver
+      
+      console.log('Received data change event:', {
+        eventTime: currentTimestamp,
+        lastUpdate: lastUpdateTimestamp,
+        timeSinceLast: currentTimestamp - lastUpdateTimestamp,
+        willUpdate: (currentTimestamp - lastUpdateTimestamp) > UPDATE_THROTTLE_MS
+      });
+      
+      if ((currentTimestamp - lastUpdateTimestamp) > UPDATE_THROTTLE_MS) {
+        console.log('Fetching fresh data from server due to socket event');
+        // Güncel verileri almak için cache-busting ile veri yenile
+        await fetchPlanningDataWithCacheBust(dispatch);
+      } else {
+        console.log('Skipping update due to throttling');
+      }
+    };
+    
     // Önemli güncellemeleri dinlemeye başla
     const events = [
       'slot:update', 
@@ -200,8 +240,8 @@ export const SocketProvider = ({ children }) => {
           time: new Date().toISOString()
         });
         
-        // Her event sonrası cache-busting ile veri yenile
-        fetchPlanningDataWithCacheBust(dispatch);
+        // Veri değişikliğini işle
+        handleDataChange(data);
       });
     });
     
@@ -220,8 +260,9 @@ export const SocketProvider = ({ children }) => {
           }
         });
       }
-      // Sonra tüm veriyi yenile
-      await fetchPlanningDataWithCacheBust(dispatch);
+      
+      // Veri değişikliğini işle
+      await handleDataChange(data);
     });
     
     socketInstance.on('driver:assign', async (data) => {
@@ -237,8 +278,9 @@ export const SocketProvider = ({ children }) => {
           }
         });
       }
-      // Sonra tüm veriyi yenile
-      await fetchPlanningDataWithCacheBust(dispatch);
+      
+      // Veri değişikliğini işle
+      await handleDataChange(data);
     });
     
     // Socket instance'ı kaydet

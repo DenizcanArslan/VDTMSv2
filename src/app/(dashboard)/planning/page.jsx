@@ -67,6 +67,12 @@ const PlanningPage = () => {
         type: 'forceUpdate'
       }));
       
+      // Global timestamp'i güncelle - socket senkronizasyonu için
+      if (typeof window !== 'undefined') {
+        window._lastPlanningUpdateTimestamp = timestamp;
+        console.log('Planning veri güncelleme timestamp updated:', timestamp);
+      }
+      
       toast.success('Data updated successfully', {
         position: 'bottom-right',
         autoClose: 2000
@@ -85,6 +91,11 @@ const PlanningPage = () => {
   
   useEffect(() => {
     console.log('Planning Page - Sayfa yüklendiğinde çalışıyor');
+    
+    // İlk yüklemede timestamp senkronizasyonunu başlat
+    if (typeof window !== 'undefined' && !window._lastPlanningUpdateTimestamp) {
+      window._lastPlanningUpdateTimestamp = Date.now();
+    }
     
     // First, load data with the standard Redux thunk
     dispatch(fetchPlanningData());
@@ -108,8 +119,26 @@ const PlanningPage = () => {
     
     window.addEventListener('manual-refresh-planning', handleDataRefresh);
     
+    // Veri güncelleme timer'ını kur - her 30 saniyede bir güncelle
+    // Bu, uzun süredir açık olan sayfalarda bile canlı verileri garanti eder
+    const dataRefreshInterval = setInterval(() => {
+      console.log('Periyodik veri yenileme zamanlayıcısı tetiklendi');
+      
+      // Son güncelleme zamanından bu yana 30 saniyeden fazla geçtiyse güncelle
+      const lastUpdate = window._lastPlanningUpdateTimestamp || 0;
+      const now = Date.now();
+      
+      if (now - lastUpdate > 30000) { // 30 saniye
+        console.log('30 saniye geçti, verileri yeniliyorum');
+        fetchPlanningDataWithCacheBust();
+      } else {
+        console.log('Son güncellemeden bu yana 30 saniye geçmedi, yenileme atlanıyor');
+      }
+    }, 30000); // 30 saniye
+    
     return () => {
       window.removeEventListener('manual-refresh-planning', handleDataRefresh);
+      clearInterval(dataRefreshInterval);
     };
   }, [dispatch]);
 
