@@ -1,16 +1,4 @@
 {
-  "version": 2,
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate, max-age=0",
-        "pragma": "no-cache",
-        "expires": "0"
-      },
-      "continue": true
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
