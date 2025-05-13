@@ -43,7 +43,7 @@ const sendSocketNotification = async (event, data) => {
 export async function PUT(request, { params }) {
   try {
     const { id } = params;
-    const { driverId } = await request.json();
+    const { driverId, date } = await request.json();
 
     const updatedSlot = await prisma.planningSlot.update({
       where: { id: parseInt(id) },
@@ -68,13 +68,21 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // Socket.IO bildirimi gönder - sadece tek bir bildirim gönder
+    // Socket.IO bildirimi gönder - tam veri ekleyelim
     console.log('Driver atama bildirimi hazırlanıyor...');
     try {
-      await sendSocketNotification('driver:assign', updatedSlot);
-      console.log('Driver atama bildirimi başarıyla gönderildi');
+      // Veri hazırlama - eksik verileri ekleyelim
+      const enrichedData = {
+        ...updatedSlot,
+        date: date, // Tarihi ekleyelim
+        slotId: parseInt(id), // Slot ID'yi ekleyelim
+        driverId: driverId ? parseInt(driverId) : null, // Driver ID'yi ekleyelim
+        updateType: 'driver-assign' // Update tipini belirtelim
+      };
       
-      // Artık sadece tek bildirim gönderiyoruz - slot:update bildirimini kaldırdık
+      await sendSocketNotification('driver:assign', enrichedData);
+      console.log('Driver atama bildirimi başarıyla gönderildi, tüm gerekli verilerle');
+      
     } catch (wsError) {
       console.error('Driver atama bildirimi gönderilirken hata:', wsError);
       // Socket.IO bildirimi başarısız olsa bile, API yanıtını döndürmeye devam et

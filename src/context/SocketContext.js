@@ -202,22 +202,22 @@ export const SocketProvider = ({ children }) => {
       
       // Son güncellemeden bu yana yeterli süre geçmiş mi kontrol et
       // (çok sık güncelleme olmasını engeller)
-      const UPDATE_THROTTLE_MS = 500; // 500ms içinde bir güncelleme izin ver
+      const UPDATE_THROTTLE_MS = 200; // Throttle süresini 200ms'ye düşürelim
       
       console.log('Received data change event:', {
         eventTime: currentTimestamp,
         lastUpdate: lastUpdateTimestamp,
         timeSinceLast: currentTimestamp - lastUpdateTimestamp,
-        willUpdate: (currentTimestamp - lastUpdateTimestamp) > UPDATE_THROTTLE_MS
+        willUpdate: (currentTimestamp - lastUpdateTimestamp) > UPDATE_THROTTLE_MS,
+        dataId: data?.id,
+        eventType: data?.updateType
       });
       
-      if ((currentTimestamp - lastUpdateTimestamp) > UPDATE_THROTTLE_MS) {
-        console.log('Fetching fresh data from server due to socket event');
-        // Güncel verileri almak için cache-busting ile veri yenile
-        await fetchPlanningDataWithCacheBust(dispatch);
-      } else {
-        console.log('Skipping update due to throttling');
-      }
+      // Her zaman güncel verileri almaya zorlayalım 
+      // Artık throttle kontrolünü sadece loggingde kullanalım ama güncel verileri her durumda alalım
+      console.log('Fetching fresh data from server due to socket event');
+      // Güncel verileri almak için cache-busting ile veri yenile
+      await fetchPlanningDataWithCacheBust(dispatch);
     };
     
     // Önemli güncellemeleri dinlemeye başla
@@ -227,6 +227,7 @@ export const SocketProvider = ({ children }) => {
       'transport:update', 
       'transport:delete',
       'transport:status-update',
+      'planning:slot:updated',
       'driver:assign', 
       'truck:assign'
     ];
@@ -237,6 +238,10 @@ export const SocketProvider = ({ children }) => {
           id: data?.id,
           updateType: data?.updateType,
           transportId: data?.transportId,
+          slotId: data?.slotId,
+          driverId: data?.driverId, 
+          truckId: data?.truckId,
+          date: data?.date,
           time: new Date().toISOString()
         });
         
@@ -248,39 +253,75 @@ export const SocketProvider = ({ children }) => {
     // Truck ve Driver event'leri için özel işleyiciler
     // Bu özel işleyiciler, Redux state'ini hemen güncellemek için kullanılır
     socketInstance.on('truck:assign', async (data) => {
-      console.log('Truck assign olayı alındı:', data);
-      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
-      if (data.slotId && data.truckId) {
-        dispatch({
-          type: 'planning/updateSlotTruck',
-          payload: {
-            dateStr: new Date(data.date).toISOString().split('T')[0],
-            slotId: data.slotId,
-            truckId: data.truckId
-          }
-        });
+      console.log('Truck assign olayı alındı (detaylı log):', data);
+      
+      // Eğer veri eksikse, kaydedelim 
+      if (!data || (!data.slotId && !data.truckId && !data.date)) {
+        console.warn('Truck assign olayında eksik veri tespit edildi:', data);
       }
       
-      // Veri değişikliğini işle
-      await handleDataChange(data);
+      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
+      try {
+        if (data.slotId && data.date) {
+          const dateStr = typeof data.date === 'string' 
+            ? new Date(data.date).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+            
+          dispatch({
+            type: 'planning/updateSlotTruck',
+            payload: {
+              dateStr,
+              slotId: data.slotId,
+              truckId: data.truckId || null
+            }
+          });
+          console.log('Redux state truck assignment ile güncellendi');
+        } else {
+          console.warn('Eksik veriler nedeniyle Redux güncellemesi atlandı');
+        }
+      } catch (error) {
+        console.error('Redux güncellemesi sırasında hata:', error);
+      }
+      
+      // Her durumda tamamen yeni verileri yükleyelim
+      console.log('Tam veri yenileme başlatılıyor...');
+      await fetchPlanningDataWithCacheBust(dispatch);
     });
     
     socketInstance.on('driver:assign', async (data) => {
-      console.log('Driver assign olayı alındı:', data);
-      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
-      if (data.slotId && data.driverId) {
-        dispatch({
-          type: 'planning/updateSlotDriver',
-          payload: {
-            dateStr: new Date(data.date).toISOString().split('T')[0],
-            slotId: data.slotId,
-            driverId: data.driverId
-          }
-        });
+      console.log('Driver assign olayı alındı (detaylı log):', data);
+      
+      // Eğer veri eksikse, kaydedelim 
+      if (!data || (!data.slotId && !data.driverId && !data.date)) {
+        console.warn('Driver assign olayında eksik veri tespit edildi:', data);
       }
       
-      // Veri değişikliğini işle
-      await handleDataChange(data);
+      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
+      try {
+        if (data.slotId && data.date) {
+          const dateStr = typeof data.date === 'string' 
+            ? new Date(data.date).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+            
+          dispatch({
+            type: 'planning/updateSlotDriver',
+            payload: {
+              dateStr,
+              slotId: data.slotId,
+              driverId: data.driverId || null
+            }
+          });
+          console.log('Redux state driver assignment ile güncellendi');
+        } else {
+          console.warn('Eksik veriler nedeniyle Redux güncellemesi atlandı');
+        }
+      } catch (error) {
+        console.error('Redux güncellemesi sırasında hata:', error);
+      }
+      
+      // Her durumda tamamen yeni verileri yükleyelim
+      console.log('Tam veri yenileme başlatılıyor...');
+      await fetchPlanningDataWithCacheBust(dispatch);
     });
     
     // Socket instance'ı kaydet
