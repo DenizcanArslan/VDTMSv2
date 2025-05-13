@@ -4,6 +4,13 @@ import { format } from 'date-fns';
 
 export async function GET(request) {
   try {
+    // Vercel'de ve diğer ortamlarda önbelleklemeyi engelle
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
+
     const [transports, cutTransports, slots, drivers, trucks, trailers, clients, quays] = await Promise.all([
       prisma.transport.findMany({
         where: {
@@ -100,15 +107,19 @@ export async function GET(request) {
       prisma.quay.findMany({ where: { isActive: true } }),
     ]);
 
-    return NextResponse.json({
-      transports: [...transports, ...cutTransports], // Combine regular and cut transports
-      slots,
-      drivers,
-      trucks,
-      trailers,
-      clients,
-      quays,
-    });
+    // Cache-Control header'larını ekleyerek önbelleklemeyi devre dışı bırak
+    return NextResponse.json(
+      {
+        transports: [...transports, ...cutTransports], // Combine regular and cut transports
+        slots,
+        drivers,
+        trucks,
+        trailers,
+        clients,
+        quays,
+      },
+      { headers }
+    );
   } catch (error) {
     console.error('Error fetching planning data:', error);
     return NextResponse.json(

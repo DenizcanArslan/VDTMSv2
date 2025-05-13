@@ -181,7 +181,16 @@ export const SocketProvider = ({ children }) => {
     });
     
     // Önemli güncellemeleri dinlemeye başla
-    const events = ['slot:update', 'slots:reorder', 'transport:update', 'driver:assign', 'truck:assign'];
+    const events = [
+      'slot:update', 
+      'slots:reorder', 
+      'transport:update', 
+      'transport:delete',
+      'transport:status-update',
+      'driver:assign', 
+      'truck:assign'
+    ];
+    
     events.forEach(event => {
       socketInstance.on(event, (data) => {
         console.log(`Güncellenme alındı (${event}):`, {
@@ -190,9 +199,46 @@ export const SocketProvider = ({ children }) => {
           transportId: data?.transportId,
           time: new Date().toISOString()
         });
+        
         // Her event sonrası cache-busting ile veri yenile
         fetchPlanningDataWithCacheBust(dispatch);
       });
+    });
+    
+    // Truck ve Driver event'leri için özel işleyiciler
+    // Bu özel işleyiciler, Redux state'ini hemen güncellemek için kullanılır
+    socketInstance.on('truck:assign', async (data) => {
+      console.log('Truck assign olayı alındı:', data);
+      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
+      if (data.slotId && data.truckId) {
+        dispatch({
+          type: 'planning/updateSlotTruck',
+          payload: {
+            dateStr: new Date(data.date).toISOString().split('T')[0],
+            slotId: data.slotId,
+            truckId: data.truckId
+          }
+        });
+      }
+      // Sonra tüm veriyi yenile
+      await fetchPlanningDataWithCacheBust(dispatch);
+    });
+    
+    socketInstance.on('driver:assign', async (data) => {
+      console.log('Driver assign olayı alındı:', data);
+      // Önce Redux state'ini hemen güncelle (iyimser güncelleme)
+      if (data.slotId && data.driverId) {
+        dispatch({
+          type: 'planning/updateSlotDriver',
+          payload: {
+            dateStr: new Date(data.date).toISOString().split('T')[0],
+            slotId: data.slotId,
+            driverId: data.driverId
+          }
+        });
+      }
+      // Sonra tüm veriyi yenile
+      await fetchPlanningDataWithCacheBust(dispatch);
     });
     
     // Socket instance'ı kaydet
