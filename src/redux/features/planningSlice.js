@@ -6,7 +6,15 @@ export const fetchPlanningData = createAsyncThunk(
   'planning/fetchPlanningData',
   async () => {
     try {
-      const response = await fetch('/api/planning');
+      // Adding timestamp for cache-busting
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/planning?nocache=${timestamp}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -107,7 +115,14 @@ export const updateTransport = createAsyncThunk(
       if (!response.ok) throw new Error('Failed to update transport');
       
       // Transport güncellemesinden sonra tüm planning verilerini yeniden yükle
-      const planningResponse = await fetch('/api/planning');
+      const timestamp = new Date().getTime();
+      const planningResponse = await fetch(`/api/planning?nocache=${timestamp}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       if (!planningResponse.ok) throw new Error('Failed to fetch planning data');
       const planningData = await planningResponse.json();
       

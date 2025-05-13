@@ -195,10 +195,6 @@ export const SocketProvider = ({ children }) => {
       });
     });
     
-    socketInstance.on('truck:assign', async (data) => {
-      await dispatch(fetchPlanningData());
-    });
-    
     // Socket instance'ı kaydet
     setSocket(socketInstance);
     
