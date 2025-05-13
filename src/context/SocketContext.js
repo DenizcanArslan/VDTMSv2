@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { io } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { getSocketClientUrl } from '@/lib/websocket';
+import { useDispatch } from 'react-redux';
+import { fetchPlanningData } from '@/redux/planningSlice';
 
 // Socket.IO Context
 export const SocketContext = createContext({
@@ -18,11 +20,33 @@ export const SocketContext = createContext({
 const RECONNECT_TIMEOUT = 3000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+// Cache-busting ile planning verisi yenileme fonksiyonu
+const fetchPlanningDataWithCacheBust = async (dispatch) => {
+  const timestamp = new Date().getTime();
+  const response = await fetch(`/api/planning?nocache=${timestamp}`, {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
+  });
+  const data = await response.json();
+  dispatch({
+    type: 'planning/updateTransportsAndSlots',
+    payload: {
+      transportUpdates: data.transports || [],
+      slotUpdates: data.slots || {},
+      type: 'forceUpdate'
+    }
+  });
+};
+
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
+  const dispatch = useDispatch();
 
   // Socket.IO bağlantısı kur
   useEffect(() => {
@@ -167,7 +191,13 @@ export const SocketProvider = ({ children }) => {
           transportId: data?.transportId,
           time: new Date().toISOString()
         });
+        // Her event sonrası cache-busting ile veri yenile
+        fetchPlanningDataWithCacheBust(dispatch);
       });
+    });
+    
+    socketInstance.on('truck:assign', async (data) => {
+      await dispatch(fetchPlanningData());
     });
     
     // Socket instance'ı kaydet
@@ -197,7 +227,7 @@ export const SocketProvider = ({ children }) => {
       // Bağlantıyı kapat
       socketInstance.disconnect();
     };
-  }, []);
+  }, [dispatch]);
   
   // Socket event dinleyicisi ekle
   const on = useCallback((event, callback) => {
