@@ -1,5 +1,5 @@
 import { Dialog, Transition } from '@headlessui/react';
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { FiX } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { useDispatch, useSelector } from 'react-redux';
@@ -40,55 +40,135 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
   const [newNote, setNewNote] = useState('');
   const [selectedColor, setSelectedColor] = useState('BLUE');
   const [isLoading, setIsLoading] = useState(false);
-  const { on } = useSocket();
+  const { on, off } = useSocket();
+  const socketListenerRef = useRef(null);
+  const lastUpdateTimeRef = useRef(0);
+  const isInitialFetchDoneRef = useRef(false);
+  const manualUpdateInProgressRef = useRef(false);
 
-  // Socket.IO güncellemelerini dinle
+  // Socket.IO güncellemelerini dinle - transport:update olayını bileşen mount olduğunda başlat ve unmount olduğunda durdur
   useEffect(() => {
-    if (!isOpen) return;
-
-    // Transport güncellemesi geldiğinde, güncel notları yeniden al
-    const unsubscribeTransportUpdate = on('transport:update', (data) => {
-      // Sadece açık olan transportun güncellemesi ise notları yenile
-      if (data && data.id === parseInt(transportId)) {
-        console.log('Socket.IO transport update received, refreshing notes');
-        fetchNotes();
+    // Transport güncellemesi geldiğinde çalışacak callback
+    const handleTransportUpdate = (data) => {
+      const now = Date.now();
+      // Manuel bir güncelleme işlemi yürütülüyorsa, socket güncellemesini yoksay
+      if (manualUpdateInProgressRef.current) {
+        console.log('Ignoring socket update due to manual update in progress');
+        return;
       }
-    });
-
-    return () => {
-      unsubscribeTransportUpdate();
+      
+      // Check if this is a notes update specifically
+      if (data && data.id === parseInt(transportId) && data.updateType === 'notes') {
+        console.log('Socket.IO transport notes update received in modal', {
+          transportId,
+          received: now,
+          lastUpdate: lastUpdateTimeRef.current,
+          timeSinceLastUpdate: now - lastUpdateTimeRef.current,
+          hasNotes: !!data.notes,
+          noteCount: data.notes?.length
+        });
+        
+        // Gelen transport verisinde notes varsa, doğrudan kullan
+        if (data.notes && Array.isArray(data.notes)) {
+          // Compare incoming notes with current notes to avoid unnecessary updates
+          const currentNoteIds = new Set(notes.map(note => note.id));
+          const newNoteIds = new Set(data.notes.map(note => note.id));
+          
+          // Only update if there are actual differences
+          const hasChanges = 
+            currentNoteIds.size !== newNoteIds.size || 
+            data.notes.some(note => !currentNoteIds.has(note.id)) ||
+            notes.some(note => !newNoteIds.has(note.id));
+            
+          if (hasChanges) {
+            console.log('Setting notes from socket update - changes detected');
+            setNotes(data.notes);
+            lastUpdateTimeRef.current = now;
+            
+            // Redux store'u güncelle
+            dispatch(updateTransportsAndSlots({
+              transportUpdates: [data],
+              type: 'update'
+            }));
+          } else {
+            console.log('Ignoring socket update - no changes detected in notes');
+          }
+        }
+      }
     };
-  }, [isOpen, transportId, on]);
 
-  // Modal açıldığında notları güncelle
-  useEffect(() => {
-    if (isOpen && transportId) {
-      fetchNotes();
+    // Önceki dinleyiciyi kaldır
+    if (socketListenerRef.current) {
+      socketListenerRef.current();
     }
-  }, [isOpen, transportId]);
+
+    // Socket dinlemeyi başlat
+    socketListenerRef.current = on('transport:update', handleTransportUpdate);
+    
+    // İlk kez açıldığında notları getir
+    if (isOpen && transportId && !isInitialFetchDoneRef.current) {
+      console.log('Modal first opened, fetching notes for transport', transportId);
+      fetchNotes();
+      isInitialFetchDoneRef.current = true;
+    }
+
+    // Cleanup
+    return () => {
+      // Socket dinlemeyi durdur
+      if (socketListenerRef.current) {
+        socketListenerRef.current();
+        socketListenerRef.current = null;
+      }
+    };
+  }, [transportId, isOpen, on, dispatch, notes]);
+
+  // Modal kapandığında initialFetch flag'ini sıfırla
+  useEffect(() => {
+    if (!isOpen) {
+      isInitialFetchDoneRef.current = false;
+    }
+  }, [isOpen]);
 
   // Redux'taki en güncel transport notlarını kullan
   useEffect(() => {
     if (currentTransport?.notes && currentTransport?.notes.length > 0) {
-      console.log('Setting notes from Redux store:', currentTransport.notes);
+      console.log('Setting notes from Redux store', { 
+        transportId, 
+        count: currentTransport.notes.length 
+      });
       setNotes(currentTransport.notes);
     }
-  }, [currentTransport?.notes]);
+  }, [currentTransport?.notes, transportId]);
 
   // Prop değiştiğinde notes state'ini güncelle
   useEffect(() => {
     if (initialNotes && initialNotes.length > 0) {
+      console.log('Setting notes from initial props', { 
+        transportId, 
+        count: initialNotes.length 
+      });
       setNotes(initialNotes);
     }
-  }, [initialNotes]);
+  }, [initialNotes, transportId]);
 
-  // Sunucudan güncel notları getir
+  // Sunucudan güncel notları getir - sadece ilk açılışta veya manuel tetiklendiğinde çalışır
   const fetchNotes = async () => {
+    if (!transportId) return;
+    
     try {
+      console.log('Fetching notes from API for transport', transportId);
       const response = await fetch(`/api/transport-notes?transportId=${transportId}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
+      
+      console.log('Fetched notes from API:', { transportId, count: data.length });
       setNotes(data);
+      lastUpdateTimeRef.current = Date.now();
+      
+      // Parent component'e bildir
+      if (onNotesChange) {
+        onNotesChange(data);
+      }
     } catch (error) {
       console.error('Error fetching notes:', error);
       toast.error('Failed to fetch notes');
@@ -101,7 +181,10 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
     if (!newNote.trim()) return;
 
     setIsLoading(true);
+    manualUpdateInProgressRef.current = true; // Manuel güncelleme başladığını işaretle
+    
     try {
+      console.log('Adding new note for transport', transportId);
       const response = await fetch('/api/transport-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,20 +198,28 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
-      setNotes(prev => [data, ...prev]);
+      // Not eklendiğinde input'u temizle
       setNewNote('');
-      onNotesChange?.();
       
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      // API'den dönen note'u notes state'ine ekle (optimistik güncelleme)
+      const newNoteData = {
+        id: data.id,
+        content: data.content,
+        color: data.color,
+        createdAt: data.createdAt,
+        transportId: data.transportId
+      };
       
-      const planningData = await planningRes.json();
-      dispatch(updateTransportsAndSlots({
-        transportUpdates: planningData.transports,
-        slotUpdates: planningData.slots,
-        type: 'update'
-      }));
+      // Yeni notu en başa ekle
+      setNotes(prev => [newNoteData, ...prev]);
+      lastUpdateTimeRef.current = Date.now();
+      
+      console.log('Note added successfully, API response:', data._meta);
+      
+      // Parent component'e bildir
+      if (onNotesChange) {
+        onNotesChange();
+      }
 
       toast.success('Note added successfully');
     } catch (error) {
@@ -136,36 +227,48 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
       toast.error('Failed to add note');
     } finally {
       setIsLoading(false);
+      // Manuel güncelleme işlemi bittikten 300ms sonra socket güncellemelerine izin ver
+      setTimeout(() => {
+        manualUpdateInProgressRef.current = false;
+      }, 300);
     }
   };
 
   // Not sil
   const handleDeleteNote = async (noteId) => {
+    manualUpdateInProgressRef.current = true; // Manuel güncelleme başladığını işaretle
+    
     try {
+      console.log('Deleting note', noteId, 'for transport', transportId);
+      
+      // Optimistik UI güncelleme - önce UI'dan notu kaldır
+      setNotes(prev => prev.filter(note => note.id !== noteId));
+      
       const response = await fetch(`/api/transport-notes?id=${noteId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) throw new Error('Failed to delete note');
       
-      setNotes(prev => prev.filter(note => note.id !== noteId));
-      onNotesChange?.();
-
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      lastUpdateTimeRef.current = Date.now();
+      console.log('Note deleted successfully, API response:', response);
       
-      const planningData = await planningRes.json();
-      dispatch(updateTransportsAndSlots({
-        transportUpdates: planningData.transports,
-        slotUpdates: planningData.slots,
-        type: 'update'
-      }));
+      // Parent component'e bildir
+      if (onNotesChange) {
+        onNotesChange();
+      }
       
       toast.success('Note deleted successfully');
     } catch (error) {
       console.error('Error deleting note:', error);
       toast.error('Failed to delete note');
+      // Hata durumunda notları tekrar getir
+      fetchNotes();
+    } finally {
+      // Manuel güncelleme işlemi bittikten 300ms sonra socket güncellemelerine izin ver
+      setTimeout(() => {
+        manualUpdateInProgressRef.current = false;
+      }, 300);
     }
   };
 
@@ -198,7 +301,7 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
                 <div className="flex justify-between items-center mb-4">
                   <Dialog.Title className="text-lg font-medium">
-                    Transport Notes
+                    Transport Notes {notes.length > 0 && `(${notes.length})`}
                   </Dialog.Title>
                   <button
                     onClick={onClose}
@@ -236,7 +339,7 @@ export default function TransportNoteModal({ isOpen, onClose, transportId, notes
                       disabled={isLoading || !newNote.trim()}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                     >
-                      Add Note
+                      {isLoading ? 'Adding...' : 'Add Note'}
                     </button>
                   </div>
                 </form>

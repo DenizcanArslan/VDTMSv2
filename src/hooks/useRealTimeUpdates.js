@@ -375,7 +375,8 @@ const useRealTimeUpdates = () => {
             pickUpDate: data.pickUpDate,
             dropOffDate: data.dropOffDate,
             destinations: data.destinations,
-            slotAssignments: data.slotAssignments
+            slotAssignments: data.slotAssignments,
+            updateType: data.updateType
           });
           
           // Always fetch complete planning data for any transport update to ensure cross-user synchronization
@@ -383,13 +384,21 @@ const useRealTimeUpdates = () => {
           
           // Show notification only if in planning page
           if (isInPlanningPage) {
-            let message = `Transport updated: ${data.transportOrderNumber || 'Unknown'}`;
+            let message = '';
             
             // Special message for ON_HOLD status change
             if (data.status === 'ON_HOLD') {
               message = `Transport added to onhold: ${data.transportOrderNumber || 'Unknown'}`;
               showToastDebounced(message, 'warning');
-            } else {
+            } 
+            // Special message for notes updates
+            else if (data.updateType === 'notes') {
+              message = `Notes updated for transport: ${data.transportOrderNumber || 'Unknown'}`;
+              showToastDebounced(message);
+            }
+            // Default update message
+            else {
+              message = `Transport updated: ${data.transportOrderNumber || 'Unknown'}`;
               showToastDebounced(message);
             }
           }

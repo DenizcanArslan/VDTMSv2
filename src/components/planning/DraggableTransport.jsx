@@ -311,38 +311,73 @@ export default function DraggableTransport({
   
   // Listen for real-time Socket.IO updates on transport changes
   useEffect(() => {
-    const handleTransportUpdate = (updatedTransport) => {
-      // Only update if this is the same transport
-      if (updatedTransport.id === transport.id) {
-        console.log('Socket.IO: Received transport update for current transport:', updatedTransport);
-        
-        // Update SCR/CPU states when transport is updated via Socket.IO
-        if (updatedTransport.scrCpuStatus !== scrCpuStatus) {
-          setScrCpuStatus(updatedTransport.scrCpuStatus);
+    // Sadece ilk renderda notları getir
+    if (!initialFetchDoneRef.current) {
+      fetchNotes();
+      initialFetchDoneRef.current = true;
+    }
+
+    // Bu fonksiyon, bir transport güncellemesi olduğunda çağrılır
+    const handleTransportUpdate = (data) => {
+      // Çok sık çağrılmaması için son güncellemeden beri en az 500ms geçmesini sağla
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastTransportUpdateRef.current;
+      
+      // Bu transport için bir güncelleme geldi mi kontrol et
+      if (data && data.id === transport.id) {
+        // Son güncellemeden beri yeterince süre geçmediyse, bu güncellemeyi atla
+        if (timeSinceLastUpdate < 500) {
+          console.log('Ignoring transport update due to rate limiting', {
+            transportId: transport.id, 
+            timeSinceLastUpdate
+          });
+          return;
         }
         
-        if (updatedTransport.scrCpuColor !== scrCpuColor) {
-          setScrCpuColor(updatedTransport.scrCpuColor);
-        }
+        lastTransportUpdateRef.current = now;
         
-        if (updatedTransport.requiresScrCpu !== scrCpuRequired) {
-          setScrCpuRequired(updatedTransport.requiresScrCpu);
-        }
-        
-        if (updatedTransport.scrCpuAssignedToDriver !== isScrCpuAssignedToDriver) {
-          setIsScrCpuAssignedToDriver(updatedTransport.scrCpuAssignedToDriver);
+        // Transport'un notları güncellendiyse, notes state'ini güncelle
+        if (data.updateType === 'notes' && data.notes && Array.isArray(data.notes)) {
+          // Compare current notes with incoming notes to avoid unnecessary updates
+          const currentNoteIds = new Set(notes.map(note => note.id));
+          const newNoteIds = new Set(data.notes.map(note => note.id));
+          
+          // Only update if there are actual differences
+          const hasChanges = 
+            currentNoteIds.size !== newNoteIds.size || 
+            data.notes.some(note => !currentNoteIds.has(note.id)) ||
+            notes.some(note => !newNoteIds.has(note.id));
+            
+          if (hasChanges) {
+            console.log('Setting notes from socket update in DraggableTransport - changes detected');
+            setNotes(data.notes);
+          }
         }
       }
     };
-    
-    // Subscribe to transport:update events
-    const cleanup = on('transport:update', handleTransportUpdate);
-    
-    return () => {
-      // Cleanup listener when component unmounts
-      cleanup();
+
+    // Önceki dinleyiciyi kaldır
+    if (transportUpdateListenerRef.current) {
+      const oldListener = transportUpdateListenerRef.current;
+      off(oldListener.event, oldListener.callback);
+    }
+
+    // Yeni dinleyici oluştur ve referansını kaydet
+    transportUpdateListenerRef.current = {
+      event: 'transport:update',
+      callback: handleTransportUpdate
     };
-  }, [transport.id, on, scrCpuStatus, scrCpuColor, scrCpuRequired, isScrCpuAssignedToDriver]);
+
+    // Socket dinlemeyi başlat
+    const unsubscribeTransportUpdate = on('transport:update', handleTransportUpdate);
+
+    // Bileşen unmount olduğunda dinlemeyi durdur
+    return () => {
+      if (unsubscribeTransportUpdate) {
+        unsubscribeTransportUpdate();
+      }
+    };
+  }, [transport.id, on, off, notes]);
   
   // Keep local state in sync with incoming transport props
   useEffect(() => {
@@ -468,387 +503,20 @@ export default function DraggableTransport({
   const fetchNotes = async () => {
     try {
       const response = await fetch(`/api/transport-notes?transportId=${transport.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch notes');
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
       setNotes(data);
     } catch (error) {
       console.error('Error fetching notes:', error);
     }
   };
 
-  useEffect(() => {
-    fetchNotes();
-  }, [transport.id]);
-
-  // Redux'taki notelar değiştiğinde local state'i güncelle
-  useEffect(() => {
-    if (currentTransport?.notes) {
-      setNotes(currentTransport.notes);
-    }
-  }, [currentTransport?.notes]);
-
-  const handleScrCpuToggle = async () => {
-    try {
-      // Provide immediate visual feedback
-      const newRequiredState = !scrCpuRequired;
-      setScrCpuRequired(newRequiredState);
-      
-      // Update status and color immediately based on the new required state
-      if (newRequiredState) {
-        setScrCpuStatus('SCRCPUNOK');
-        setScrCpuColor('RED');
-      } else {
-        setScrCpuStatus(null);
-        setScrCpuColor(null);
-      }
-      
-      const response = await fetch(`/api/transports/${transport.id}/scrcpu-requirement`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requiresScrCpu: newRequiredState }),
-      });
-
-      if (!response.ok) {
-        // Revert changes if the request failed
-        setScrCpuRequired(!newRequiredState);
-        setScrCpuStatus(transport.scrCpuStatus);
-        setScrCpuColor(transport.scrCpuColor);
-        throw new Error('Failed to update SCR/CPU requirement');
-      }
-
-      toast.success('SCR/CPU requirement updated');
-    } catch (error) {
-      console.error('Error updating SCR/CPU requirement:', error);
-      toast.error('Failed to update SCR/CPU requirement');
-    }
-  };
-
-  // T1 durum değişikliği için state
-  const [t1Required, setT1Required] = useState(transport.requiresT1);
-  const [t1Received, setT1Received] = useState(transport.t1Received);
-
-  // Redux store'dan her zaman taze T1 durumlarını al
-  const currentT1Required = currentTransport?.requiresT1 || false;
-  const currentT1Received = currentTransport?.t1Received || false;
-
-  // T1 durumu için handler
-  const handleT1Toggle = async () => {
-    try {
-      // T1 gerekli durum değişikliği
-      const response = await fetch(`/api/planning/transports/${transport.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requiresT1: !currentT1Required, // Mevcut durumun tersi
-          t1Received: false // T1 gerekli durum değiştiğinde, t1Received'ı sıfırla
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update T1 requirement');
-      }
-      
-      // Redux store'u güncelle - önemli
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-      
-      toast.success('T1 requirement updated');
-    } catch (error) {
-      console.error('Error updating T1 requirement:', error);
-      toast.error('Failed to update T1 requirement');
-    }
-  };
-
-  // T1 alındı durumu için handler
-  const handleT1Received = async () => {
-    try {
-      const response = await fetch(`/api/planning/transports/${transport.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          t1Received: !currentT1Received // Mevcut durumun tersi
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update T1 received status');
-      }
-      
-      // Redux store'u güncelle - önemli
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-      
-      toast.success('T1 received status updated');
-    } catch (error) {
-      console.error('Error updating T1 received status:', error);
-      toast.error('Failed to update T1 received status');
-    }
-  };
-
-  const handleOpenModal = async () => {
-    try {
-      // Slot'ta driver ve truck kontrolü
-      if (!slot?.driver || !slot?.truck) {
-        toast.error('Please assign both driver and truck to the slot before sending transport to driver');
-        return;
-      }
-
-      // Trailer kontrolü
-      if (!transport.trailer) {
-        toast.error('Please assign a trailer to the transport before sending to driver');
-        return;
-      }
-
-      // Transport'un tüm destination tarihlerini kontrol et
-      const destinationDates = transport.destinations.map(d => 
-        format(new Date(d.destinationDate), 'yyyy-MM-dd')
-      );
-
-      // Her tarih için driver ve truck kontrolü yap
-      const availabilityResponse = await fetch('/api/planning/slots/check-availability', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dates: destinationDates,
-          driverId: slot.driver.id,
-          truckId: slot.truck.id,
-          excludeTransportId: transport.id
-        })
-      });
-
-      const { available, conflicts } = await availabilityResponse.json();
-
-      if (!available) {
-        toast.error(
-          `Cannot assign: ${conflicts.map(c => {
-            const assignment = c.assignments[0];
-            return `${assignment.driverName} and ${assignment.truckName} are already assigned to another transport in Slot #${assignment.slotNumber} on ${format(new Date(c.date), 'dd/MM/yyyy')}`;
-          }).join(' and ')}`
-        );
-        return;
-      }
-
-      await fetchCurrentSlotData();
-      setIsAssignDriverModalOpen(true);
-    } catch (error) {
-      console.error('Error checking availability:', error);
-      toast.error('Failed to check driver and truck availability');
-    }
-  };
-
-  const handleAssignDriver = async () => {
-    try {
-      // Transport'un tüm slot atamalarını kontrol et
-      const slotsResponse = await fetch(`/api/planning/transports/${transport.id}/slots`);
-      const { slots } = await slotsResponse.json();
-      
-      // Slot ataması olmayan tarih var mı kontrol et
-      const hasUnassignedSlots = slots.some(slotAssignment => !slotAssignment.slot);
-      
-      if (hasUnassignedSlots) {
-        toast.error('Please assign all transport dates to slots before sending to driver');
-        return;
-      }
-
-      // Truck ve driver'ın başka bir slotta atanmış olup olmadığını kontrol et
-      if (slot.driver && slot.truck) {
-        // Transport'un tüm günlerinde kontrol yap
-        for (const slotAssignment of slots) {
-          if (!slotAssignment.slot) continue;
-          
-          const slotDate = new Date(slotAssignment.date).toISOString().split('T')[0];
-          
-          // Driver kontrolü - aynı transport'a ait slotları hariç tut
-          const driverCheckResponse = await fetch(
-            `/api/planning/slots/check-driver?date=${slotDate}&driverId=${slot.driver.id}&excludeTransportId=${transport.id}`
-          );
-          const driverCheckResult = await driverCheckResponse.json();
-          
-          if (driverCheckResult.isAssigned) {
-            toast.error(`Driver is already assigned to another transport on ${new Date(slotDate).toLocaleDateString()}`);
-            return;
-          }
-          
-          // Truck kontrolü - aynı transport'a ait slotları hariç tut
-          const truckCheckResponse = await fetch(
-            `/api/planning/slots/check-truck?date=${slotDate}&truckId=${slot.truck.id}&excludeTransportId=${transport.id}`
-          );
-          const truckCheckResult = await truckCheckResponse.json();
-          
-          if (truckCheckResult.isAssigned) {
-            toast.error(`Truck is already assigned to another transport on ${new Date(slotDate).toLocaleDateString()}`);
-            return;
-          }
-        }
-      }
-
-      await dispatch(updateTransportCurrentStatus({
-        transportId: transport.id,
-        currentStatus: 'ONGOING',
-        sentToDriver: true,
-        sourceSlotId: slot.id
-      })).unwrap();
-      
-      setIsAssignDriverModalOpen(false);
-      toast.success('Transport sent to driver successfully');
-      
-      // SCR-CPU hatırlatması göster (import ve SCR-CPU gerekli ise)
-      if (transport.type === 'IMPORT' && transport.requiresScrCpu) {
-        setIsScrCpuReminderOpen(true);
-        setReminderTimeLeft(5);
-        
-        // 5 saniye sonra otomatik kapanma için zamanlayıcı
-        const timer = setInterval(() => {
-          setReminderTimeLeft(prev => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              setIsScrCpuReminderOpen(false);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to send transport to driver');
-    }
-  };
-
-  const handleUnassignFromDriver = async () => {
-    try {
-      // Önce transport'un status'ünü güncelle
-      await dispatch(updateTransportCurrentStatus({
-        transportId: transport.id,
-        currentStatus: 'PLANNED',
-        sentToDriver: false
-      })).unwrap();
-
-      // ETA'ları sıfırla
-      await dispatch(updateTransportEtas({
-        transportId: transport.id,
-        pickUpEta: null,
-        dropOffEta: null,
-        destinationEtas: transport.destinations.map(dest => ({
-          destinationId: dest.id,
-          eta: null
-        }))
-      })).unwrap();
-
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-
-      toast.success('Transport unassigned from driver');
-    } catch (error) {
-      toast.error('Failed to unassign transport from driver');
-    }
-  };
-
-  const handleUnassignFromTruck = async () => {
-    try {
-      // Önce transport'un status'ünü güncelle
-      await dispatch(updateTransportCurrentStatus({
-        transportId: transport.id,
-        currentStatus: 'PLANNED',
-        sentToDriver: false
-      })).unwrap();
-
-      // ETA'ları sıfırla
-      await dispatch(updateTransportEtas({
-        transportId: transport.id,
-        pickUpEta: null,
-        dropOffEta: null,
-        destinationEtas: transport.destinations.map(dest => ({
-          destinationId: dest.id,
-          eta: null
-        }))
-      })).unwrap();
-
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-
-      toast.success('Transport unassigned from truck');
-    } catch (error) {
-      toast.error('Failed to unassign transport from truck');
-    }
-  };
-
-  const fetchCurrentSlotData = async () => {
-    try {
-      const response = await fetch(`/api/planning/slots/${slot.id}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error('Failed to fetch slot data');
-      setCurrentSlotData(data);
-    } catch (error) {
-      console.error('Error fetching slot data:', error);
-      toast.error('Failed to fetch updated slot data');
-      setCurrentSlotData(slot); // Hata durumunda mevcut slot'u kullan
-    }
-  };
-
-  const handleCompleteTransport = async () => {
-    try {
-      await dispatch(updateTransportCurrentStatus({
-        transportId: transport.id,
-        currentStatus: 'COMPLETED',
-        sentToDriver: true,
-        sourceSlotId: slot.id
-      })).unwrap();
-      
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-      
-      toast.success('Transport completed successfully');
-    } catch (error) {
-      console.error('Error completing transport:', error);
-      toast.error('Failed to complete transport');
-    }
-  };
-
-  const handleMarkAsOngoing = async () => {
-    try {
-      await dispatch(updateTransportCurrentStatus({
-        transportId: transport.id,
-        currentStatus: 'ONGOING',
-        sentToDriver: true,
-        sourceSlotId: slot.id
-      })).unwrap();
-      
-      // Redux store'u güncelle
-      const planningRes = await fetch('/api/planning');
-      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
-      
-      const planningData = await planningRes.json();
-      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
-      
-      toast.success('Transport marked as ongoing successfully');
-    } catch (error) {
-      console.error('Error marking transport as ongoing:', error);
-      toast.error('Failed to mark transport as ongoing');
-    }
-  };
+  // Socket dinleyicileri için ref kullan - böylece güncellemelerin kaçırılmaması sağlanır
+  const transportUpdateListenerRef = useRef(null);
+  const lastTransportUpdateRef = useRef(Date.now());
+  const initialFetchDoneRef = useRef(false);
 
   // TAR güncellemesi için yeni fonksiyon
   const handleTarUpdate = (updatedTransport) => {
@@ -1390,6 +1058,369 @@ export default function DraggableTransport({
         // Bu, TransportTarModal içinde zaten yapılıyor
       }
     });
+  };
+
+  const handleScrCpuToggle = async () => {
+    try {
+      // Provide immediate visual feedback
+      const newRequiredState = !scrCpuRequired;
+      setScrCpuRequired(newRequiredState);
+      
+      // Update status and color immediately based on the new required state
+      if (newRequiredState) {
+        setScrCpuStatus('SCRCPUNOK');
+        setScrCpuColor('RED');
+      } else {
+        setScrCpuStatus(null);
+        setScrCpuColor(null);
+      }
+      
+      const response = await fetch(`/api/transports/${transport.id}/scrcpu-requirement`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requiresScrCpu: newRequiredState }),
+      });
+
+      if (!response.ok) {
+        // Revert changes if the request failed
+        setScrCpuRequired(!newRequiredState);
+        setScrCpuStatus(transport.scrCpuStatus);
+        setScrCpuColor(transport.scrCpuColor);
+        throw new Error('Failed to update SCR/CPU requirement');
+      }
+
+      toast.success('SCR/CPU requirement updated');
+    } catch (error) {
+      console.error('Error updating SCR/CPU requirement:', error);
+      toast.error('Failed to update SCR/CPU requirement');
+    }
+  };
+
+  // T1 durum değişikliği için state
+  const [t1Required, setT1Required] = useState(transport.requiresT1);
+  const [t1Received, setT1Received] = useState(transport.t1Received);
+
+  // Redux store'dan her zaman taze T1 durumlarını al
+  const currentT1Required = currentTransport?.requiresT1 || false;
+  const currentT1Received = currentTransport?.t1Received || false;
+
+  // T1 durumu için handler
+  const handleT1Toggle = async () => {
+    try {
+      // T1 gerekli durum değişikliği
+      const response = await fetch(`/api/planning/transports/${transport.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requiresT1: !currentT1Required, // Mevcut durumun tersi
+          t1Received: false // T1 gerekli durum değiştiğinde, t1Received'ı sıfırla
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update T1 requirement');
+      }
+      
+      // Redux store'u güncelle - önemli
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+      
+      toast.success('T1 requirement updated');
+    } catch (error) {
+      console.error('Error updating T1 requirement:', error);
+      toast.error('Failed to update T1 requirement');
+    }
+  };
+
+  // T1 alındı durumu için handler
+  const handleT1Received = async () => {
+    try {
+      const response = await fetch(`/api/planning/transports/${transport.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          t1Received: !currentT1Received // Mevcut durumun tersi
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update T1 received status');
+      }
+      
+      // Redux store'u güncelle - önemli
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+      
+      toast.success('T1 received status updated');
+    } catch (error) {
+      console.error('Error updating T1 received status:', error);
+      toast.error('Failed to update T1 received status');
+    }
+  };
+
+  const handleOpenModal = async () => {
+    try {
+      // Slot'ta driver ve truck kontrolü
+      if (!slot?.driver || !slot?.truck) {
+        toast.error('Please assign both driver and truck to the slot before sending transport to driver');
+        return;
+      }
+
+      // Trailer kontrolü
+      if (!transport.trailer) {
+        toast.error('Please assign a trailer to the transport before sending to driver');
+        return;
+      }
+
+      // Transport'un tüm destination tarihlerini kontrol et
+      const destinationDates = transport.destinations.map(d => 
+        format(new Date(d.destinationDate), 'yyyy-MM-dd')
+      );
+
+      // Her tarih için driver ve truck kontrolü yap
+      const availabilityResponse = await fetch('/api/planning/slots/check-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dates: destinationDates,
+          driverId: slot.driver.id,
+          truckId: slot.truck.id,
+          excludeTransportId: transport.id
+        })
+      });
+
+      const { available, conflicts } = await availabilityResponse.json();
+
+      if (!available) {
+        toast.error(
+          `Cannot assign: ${conflicts.map(c => {
+            const assignment = c.assignments[0];
+            return `${assignment.driverName} and ${assignment.truckName} are already assigned to another transport in Slot #${assignment.slotNumber} on ${format(new Date(c.date), 'dd/MM/yyyy')}`;
+          }).join(' and ')}`
+        );
+        return;
+      }
+
+      await fetchCurrentSlotData();
+      setIsAssignDriverModalOpen(true);
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      toast.error('Failed to check driver and truck availability');
+    }
+  };
+
+  const handleAssignDriver = async () => {
+    try {
+      // Transport'un tüm slot atamalarını kontrol et
+      const slotsResponse = await fetch(`/api/planning/transports/${transport.id}/slots`);
+      const { slots } = await slotsResponse.json();
+      
+      // Slot ataması olmayan tarih var mı kontrol et
+      const hasUnassignedSlots = slots.some(slotAssignment => !slotAssignment.slot);
+      
+      if (hasUnassignedSlots) {
+        toast.error('Please assign all transport dates to slots before sending to driver');
+        return;
+      }
+
+      // Truck ve driver'ın başka bir slotta atanmış olup olmadığını kontrol et
+      if (slot.driver && slot.truck) {
+        // Transport'un tüm günlerinde kontrol yap
+        for (const slotAssignment of slots) {
+          if (!slotAssignment.slot) continue;
+          
+          const slotDate = new Date(slotAssignment.date).toISOString().split('T')[0];
+          
+          // Driver kontrolü - aynı transport'a ait slotları hariç tut
+          const driverCheckResponse = await fetch(
+            `/api/planning/slots/check-driver?date=${slotDate}&driverId=${slot.driver.id}&excludeTransportId=${transport.id}`
+          );
+          const driverCheckResult = await driverCheckResponse.json();
+          
+          if (driverCheckResult.isAssigned) {
+            toast.error(`Driver is already assigned to another transport on ${new Date(slotDate).toLocaleDateString()}`);
+            return;
+          }
+          
+          // Truck kontrolü - aynı transport'a ait slotları hariç tut
+          const truckCheckResponse = await fetch(
+            `/api/planning/slots/check-truck?date=${slotDate}&truckId=${slot.truck.id}&excludeTransportId=${transport.id}`
+          );
+          const truckCheckResult = await truckCheckResponse.json();
+          
+          if (truckCheckResult.isAssigned) {
+            toast.error(`Truck is already assigned to another transport on ${new Date(slotDate).toLocaleDateString()}`);
+            return;
+          }
+        }
+      }
+
+      await dispatch(updateTransportCurrentStatus({
+        transportId: transport.id,
+        currentStatus: 'ONGOING',
+        sentToDriver: true,
+        sourceSlotId: slot.id
+      })).unwrap();
+      
+      setIsAssignDriverModalOpen(false);
+      toast.success('Transport sent to driver successfully');
+      
+      // SCR-CPU hatırlatması göster (import ve SCR-CPU gerekli ise)
+      if (transport.type === 'IMPORT' && transport.requiresScrCpu) {
+        setIsScrCpuReminderOpen(true);
+        setReminderTimeLeft(5);
+        
+        // 5 saniye sonra otomatik kapanma için zamanlayıcı
+        const timer = setInterval(() => {
+          setReminderTimeLeft(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsScrCpuReminderOpen(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to send transport to driver');
+    }
+  };
+
+  const handleUnassignFromDriver = async () => {
+    try {
+      // Önce transport'un status'ünü güncelle
+      await dispatch(updateTransportCurrentStatus({
+        transportId: transport.id,
+        currentStatus: 'PLANNED',
+        sentToDriver: false
+      })).unwrap();
+
+      // ETA'ları sıfırla
+      await dispatch(updateTransportEtas({
+        transportId: transport.id,
+        pickUpEta: null,
+        dropOffEta: null,
+        destinationEtas: transport.destinations.map(dest => ({
+          destinationId: dest.id,
+          eta: null
+        }))
+      })).unwrap();
+
+      // Redux store'u güncelle
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+
+      toast.success('Transport unassigned from driver');
+    } catch (error) {
+      toast.error('Failed to unassign transport from driver');
+    }
+  };
+
+  const handleUnassignFromTruck = async () => {
+    try {
+      // Önce transport'un status'ünü güncelle
+      await dispatch(updateTransportCurrentStatus({
+        transportId: transport.id,
+        currentStatus: 'PLANNED',
+        sentToDriver: false
+      })).unwrap();
+
+      // ETA'ları sıfırla
+      await dispatch(updateTransportEtas({
+        transportId: transport.id,
+        pickUpEta: null,
+        dropOffEta: null,
+        destinationEtas: transport.destinations.map(dest => ({
+          destinationId: dest.id,
+          eta: null
+        }))
+      })).unwrap();
+
+      // Redux store'u güncelle
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+
+      toast.success('Transport unassigned from truck');
+    } catch (error) {
+      toast.error('Failed to unassign transport from truck');
+    }
+  };
+
+  const fetchCurrentSlotData = async () => {
+    try {
+      const response = await fetch(`/api/planning/slots/${slot.id}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error('Failed to fetch slot data');
+      setCurrentSlotData(data);
+    } catch (error) {
+      console.error('Error fetching slot data:', error);
+      toast.error('Failed to fetch updated slot data');
+      setCurrentSlotData(slot); // Hata durumunda mevcut slot'u kullan
+    }
+  };
+
+  const handleCompleteTransport = async () => {
+    try {
+      await dispatch(updateTransportCurrentStatus({
+        transportId: transport.id,
+        currentStatus: 'COMPLETED',
+        sentToDriver: true,
+        sourceSlotId: slot.id
+      })).unwrap();
+      
+      // Redux store'u güncelle
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+      
+      toast.success('Transport completed successfully');
+    } catch (error) {
+      console.error('Error completing transport:', error);
+      toast.error('Failed to complete transport');
+    }
+  };
+
+  const handleMarkAsOngoing = async () => {
+    try {
+      await dispatch(updateTransportCurrentStatus({
+        transportId: transport.id,
+        currentStatus: 'ONGOING',
+        sentToDriver: true,
+        sourceSlotId: slot.id
+      })).unwrap();
+      
+      // Redux store'u güncelle
+      const planningRes = await fetch('/api/planning');
+      if (!planningRes.ok) throw new Error('Failed to fetch planning data');
+      
+      const planningData = await planningRes.json();
+      dispatch({ type: 'planning/updateTransportsAndSlots', payload: planningData });
+      
+      toast.success('Transport marked as ongoing successfully');
+    } catch (error) {
+      console.error('Error marking transport as ongoing:', error);
+      toast.error('Failed to mark transport as ongoing');
+    }
   };
 
   return (
@@ -2388,3 +2419,4 @@ export default function DraggableTransport({
     </>
   );
 }
+
