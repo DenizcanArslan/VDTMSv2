@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function capitalizeFirstLetter(string) {
   if (!string) return string;
   return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();

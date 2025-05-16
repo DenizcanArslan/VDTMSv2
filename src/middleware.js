@@ -29,10 +29,7 @@ function addCachingAndCorsHeaders(req, res) {
     // Vercel preview ve production origin'lere izin vermek için regex
     const vercelPreviewRegex = /^https:\/\/[\w\-]+\.vercel\.app$/;
     const allowedOrigins = [
-      'http://localhost:3000', 
-      'https://vdtms.vercel.app',
-      'https://vdtms-git-main-denizcans-projects.vercel.app',
-      'https://vdtms-bfjkno1ta-denizcans-projects.vercel.app'
+      'http://localhost:3000'
     ];
     
     // Origin header'ı varsa ve ya izin verilen bir origin ya da Vercel preview domain ise

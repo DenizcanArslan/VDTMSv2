@@ -8,29 +8,10 @@
  */
 export function getSocketServerUrl() {
   const configuredUrl = process.env.SOCKET_SERVER_URL;
-  
   if (configuredUrl) {
-    console.log('Using configured WebSocket server URL:', configuredUrl);
     return configuredUrl;
   }
-  
-  // Development ortamında EC2'deki WebSocket sunucusuna bağlan
-  const isDevelopment = process.env.NODE_ENV === 'development' || 
-                       !process.env.NODE_ENV || 
-                       window?.location?.hostname === 'localhost';
-  
-  if (isDevelopment) {
-    console.log('Development mode: Using EC2 WebSocket server');
-    return 'https://vandijle.duckdns.org:3001/api/notify';
-    
-    // Local WebSocket sunucusu (yorum satırına alındı)
-    // console.log('Development mode: Using localhost for WebSocket server');
-    // return 'http://localhost:3001/api/notify';
-  }
-  
-  // Production ortamı için DuckDNS domain
-  console.log('Production mode: Using DuckDNS domain for WebSocket server');
-  return 'https://vandijle.duckdns.org:3001/api/notify';
+  throw new Error('SOCKET_SERVER_URL environment variable is not set');
 }
 
 /**
@@ -38,36 +19,11 @@ export function getSocketServerUrl() {
  * Uses secure HTTPS connections for all environments
  */
 export function getSocketClientUrl() {
-  try {
-    const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-    
-    if (configuredUrl) {
-      console.log('Using configured WebSocket client URL:', configuredUrl);
-      return configuredUrl;
-    }
-    
-    // Development ortamında EC2'deki WebSocket sunucusuna bağlan
-    const isDevelopment = process.env.NODE_ENV === 'development' || 
-                         !process.env.NODE_ENV || 
-                         window?.location?.hostname === 'localhost';
-    
-    if (isDevelopment) {
-      console.log('Development mode: Using EC2 WebSocket server');
-      return 'wss://vandijle.duckdns.org:3001';
-      
-      // Local WebSocket sunucusu (yorum satırına alındı)
-      // console.log('Development mode: Using localhost for WebSocket client');
-      // return 'http://localhost:3001';
-    }
-    
-    // Production ortamı için DuckDNS domain
-    console.log('Production mode: Using DuckDNS domain for WebSocket client');
-    return 'wss://vandijle.duckdns.org:3001';
-  } catch (error) {
-    console.error('Error in getSocketClientUrl:', error);
-    // Fallback to localhost
-    return 'http://localhost:3001';
+  const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (configuredUrl) {
+    return configuredUrl;
   }
+  throw new Error('NEXT_PUBLIC_SOCKET_URL environment variable is not set');
 }
 
 /**

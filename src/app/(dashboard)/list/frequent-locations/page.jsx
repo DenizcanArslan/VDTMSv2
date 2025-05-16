@@ -7,6 +7,8 @@ import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import StatusButton from "@/components/StatusButton";
 
+export const dynamic = 'force-dynamic';
+
 const columns = [
   { header: "Name", accessor: "name" },
   { header: "City", accessor: "city", className: "hidden lg:table-cell" },

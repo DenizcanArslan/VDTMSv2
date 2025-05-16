@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Socket.IO bildirim fonksiyonu
 const sendSocketNotification = async (event, data) => {
   try {

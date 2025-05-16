@@ -10,6 +10,8 @@ import Image from "next/image";
 import Link from "next/link";
 import StatusButton from "@/components/StatusButton";
 
+export const dynamic = 'force-dynamic';
+
 const columns = [
   { header: "License Plate", accessor: "licensePlate" },
   { header: "Nick Name", accessor: "nickName" },

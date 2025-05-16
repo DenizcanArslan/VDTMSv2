@@ -1,6 +1,9 @@
 import prisma from '@/lib/prisma';
 import { sendSocketNotification } from '@/lib/websocket';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function PUT(request, { params }) {
   try {
     // Parse the request body

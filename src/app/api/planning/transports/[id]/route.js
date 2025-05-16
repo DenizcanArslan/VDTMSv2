@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { isGensetRequired } from '@/lib/constants/containerTypes';
 import { startOfDay, endOfDay } from "date-fns";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Socket.IO bildirim fonksiyonu
 const sendSocketNotification = async (event, data) => {
   try {

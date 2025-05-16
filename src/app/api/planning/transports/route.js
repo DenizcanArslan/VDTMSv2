@@ -2,6 +2,9 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { isGensetRequired } from '@/lib/constants/containerTypes';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(request) {
   try {
     const data = await request.json();

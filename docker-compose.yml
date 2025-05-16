@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  frontend:
+    build: .
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_SOCKET_URL=ws://localhost:3001
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Z3Jvd2luZy1yb2RlbnQtODAuY2xlcmsuYWNjb3VudHMuZGV2JA
+      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/
+      - DEBUG=prisma:query
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ORIGIN=http://localhost:3000
+      - SOCKET_SERVER_URL=http://websocket-server:3001/api/notify
+    depends_on:
+      - websocket-server
+  websocket-server:
+    build: ./websocket-server
+    container_name: websocket-server
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - POSTGRES_USER=VDdbAdmin
+      - POSTGRES_PASSWORD=VDTransport0742Merksem
+      - POSTGRES_HOST=transport-db.c14mwy6sy0y0.eu-central-1.rds.amazonaws.com
+      - POSTGRES_DB=transport
+      - POSTGRES_PORT=5432
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ORIGIN=http://localhost:3000 

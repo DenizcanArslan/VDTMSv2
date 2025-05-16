@@ -2,6 +2,9 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { format } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request) {
   try {
     // Vercel'de ve diğer ortamlarda önbelleklemeyi engelle

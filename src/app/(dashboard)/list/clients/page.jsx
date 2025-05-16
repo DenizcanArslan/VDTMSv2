@@ -9,12 +9,7 @@ import { ITEM_PER_PAGE } from "@/lib/settings";
 import StatusButton from "@/components/StatusButton";
 import Link from "next/link";
 
-
-
-
-
-
-
+export const dynamic = 'force-dynamic';
 
 // To render table's head and body
 const renderRow = (item, role) => (

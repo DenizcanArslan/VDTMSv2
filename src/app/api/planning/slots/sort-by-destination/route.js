@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 import { parseISO, startOfDay, format } from 'date-fns';
 import { getSocketServerUrl } from '@/lib/websocket';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Socket.IO bildirim fonksiyonu
 const sendSocketNotification = async (params) => {
   try {

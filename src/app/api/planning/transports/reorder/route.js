@@ -5,8 +5,8 @@ import { startOfDay, endOfDay } from "date-fns";
 // Socket.IO bildirim fonksiyonu
 const sendSocketNotification = async (event, data) => {
   try {
-    const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://127.0.0.1:3001/api/notify';
-    
+    const socketServerUrl = process.env.SOCKET_SERVER_URL;
+    if (!socketServerUrl) throw new Error('SOCKET_SERVER_URL environment variable is not set');
     await fetch(socketServerUrl, {
       method: 'POST',
       headers: {
@@ -17,7 +17,6 @@ const sendSocketNotification = async (event, data) => {
         data,
       }),
     });
-    
     console.log(`Socket.IO bildirimi gönderildi: ${event}`);
   } catch (error) {
     console.error('Socket.IO bildirim hatası:', error);

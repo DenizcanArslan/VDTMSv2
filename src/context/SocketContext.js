@@ -67,6 +67,7 @@ export const SocketProvider = ({ children }) => {
     
     // Socket.IO sunucu URL'sini belirle
     const socketUrl = getSocketClientUrl();
+    const isSecure = socketUrl.startsWith('wss://');
     console.log('Socket.IO URL:', socketUrl);
     
     // Socket.IO instance oluştur - Self-signed sertifika desteğiyle
@@ -80,7 +81,7 @@ export const SocketProvider = ({ children }) => {
       withCredentials: true,
       forceNew: true, // Yeni bir bağlantı zorla
       path: '/socket.io/',
-      secure: true
+      secure: isSecure
     });
     
     console.log('Socket.IO instance created with configuration:', {

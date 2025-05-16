@@ -145,3 +145,5 @@ const DriversListPage = async ({ searchParams }) => {
 };
 
 export default DriversListPage;
+
+export const dynamic = 'force-dynamic';

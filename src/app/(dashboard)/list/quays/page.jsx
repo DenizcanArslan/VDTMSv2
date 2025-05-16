@@ -10,6 +10,8 @@ import Link from "next/link";
 import StatusButton from "@/components/StatusButton";
 import Image from "next/image";
 
+export const dynamic = 'force-dynamic';
+
 const columns = [
   { header: "Name", accessor: "name" },
   { header: "Quay Number", accessor: "quayNumber" },

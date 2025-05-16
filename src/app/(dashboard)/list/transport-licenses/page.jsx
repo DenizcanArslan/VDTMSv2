@@ -9,6 +9,8 @@ import Image from "next/image";
 import Link from "next/link";
 import StatusButton from "@/components/StatusButton";
 
+export const dynamic = 'force-dynamic';
+
 const columns = [
   { header: "License Number", accessor: "licenseNumber" },
   { header: "Truck", accessor: "truck", className: "hidden lg:table-cell" },

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/planning/cut-locations/[id]
 // Belirli bir kesme lokasyonunu getirir
 export async function GET(request, { params }) {

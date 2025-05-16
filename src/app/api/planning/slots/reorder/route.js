@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { startOfDay, parseISO } from 'date-fns';
 import { getSocketServerUrl, logSocketError } from '@/lib/websocket';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Socket.IO bildirim fonksiyonu
 const sendSocketNotification = async (params) => {
   try {
@@ -54,8 +57,8 @@ const sendSocketNotification = async (params) => {
       // İlk URL başarısız olursa, alternatif URL'i dene
       console.warn(`İlk socket URL (${socketServerUrl}) başarısız oldu, alternatif URL deneniyor:`, primaryError.message);
       
-      // Alternatif URL - localhost
-      const alternativeUrl = 'http://localhost:3001/api/notify';
+      // Alternatif URL - environment variable
+      const alternativeUrl = process.env.SOCKET_SERVER_URL;
       
       try {
         const alternativeController = new AbortController();
