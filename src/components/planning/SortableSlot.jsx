@@ -30,11 +30,11 @@ export default function SortableSlot({
   onHold,
   dateStr,
   allSlots,
-  highlightedTransports = []
+  highlightedTransports = [],
+  selectedDate
 }) {
   const dispatch = useAppDispatch();
   const { drivers, trucks } = useAppSelector(state => state.planning);
-  const selectedDate = new Date().toISOString().split('T')[0];
   const [showDriverChangeConfirm, setShowDriverChangeConfirm] = useState(false);
   const [pendingDriverId, setPendingDriverId] = useState(null);
   const [showTruckChangeConfirm, setShowTruckChangeConfirm] = useState(false);
@@ -312,7 +312,7 @@ export default function SortableSlot({
 
       // Call the reorderSlots action
       await dispatch(reorderSlots({
-        date: dateStr,
+        date: selectedDate,
         oldIndex: index,
         newIndex: targetIndex,
       })).unwrap();

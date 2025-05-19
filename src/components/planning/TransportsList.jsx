@@ -1301,6 +1301,7 @@ const TransportsList = ({
                       onHold={handleHoldConfirm}
                       allSlots={currentSlots}
                       highlightedTransports={highlightedTransports}
+                      selectedDate={selectedDate}
                     />
                   </div>
                 ))}
