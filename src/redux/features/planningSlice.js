@@ -594,7 +594,7 @@ export const planningSlice = createSlice({
     },
     updateTransportsAndSlots(state, action) {
       try {
-        const { transportUpdates, slotUpdates, type } = action.payload;
+        const { transportUpdates, slotUpdates, type, date } = action.payload;
         console.log('🔄 updateTransportsAndSlots çalıştırılıyor:', {
           type,
           transportCount: transportUpdates?.length || 0,
@@ -691,140 +691,42 @@ export const planningSlice = createSlice({
         }
         
         // Slot güncellemeleri - API'den gelen veri yapısına göre işlem yap
-        console.log('Slot updates check:', {
-          isObject: typeof slotUpdates === 'object', 
-          isArray: Array.isArray(slotUpdates),
-          hasSlotUpdates: !!slotUpdates,
-          slotUpdateKeys: slotUpdates ? Object.keys(slotUpdates).length : 0
-        });
-        
-        // 1. Durum: slotUpdates bir obje olarak gelmiş (API'den)
-        // Örnek: { "2023-05-01T00:00:00.000Z": [slot1, slot2, ...] }
         if (slotUpdates && typeof slotUpdates === 'object' && !Array.isArray(slotUpdates)) {
-          console.log('Processing object-format slot updates with keys:', Object.keys(slotUpdates));
-          
-          if (type === 'forceUpdate') {
-            // Doğrudan tüm slot verilerini değiştir
-            console.log('Tüm slot verileri zorla değiştiriliyor', {
-              mevcut: Object.keys(state.slots || {}).length,
-              yeni: Object.keys(slotUpdates).length
-            });
-            
-            // Doğrudan atama
-            state.slots = { ...slotUpdates };
-          } else {
-            // Her bir tarih anahtarı için slotları güncelle
-            Object.keys(slotUpdates).forEach(dateStr => {
-              const slotsForDate = slotUpdates[dateStr];
-              
-              if (!Array.isArray(slotsForDate)) {
-                console.warn(`${dateStr} için slot verisi dizi değil:`, slotsForDate);
-                return;
-              }
-              
-              console.log(`${dateStr} için ${slotsForDate.length} slot güncelleniyor...`);
-              
-              // Tarih anahtarı için slots dizisi yoksa oluştur
-              if (!state.slots[dateStr]) {
-                state.slots[dateStr] = [];
-              }
-              
-              // Slotları güncelle veya ekle
-              slotsForDate.forEach(updatedSlot => {
-                const existingIndex = state.slots[dateStr].findIndex(s => s.id === updatedSlot.id);
-                
-                if (existingIndex !== -1) {
-                  // Mevcut slot'u güncelle, transport'ları koru
-                  state.slots[dateStr][existingIndex] = {
-                    ...state.slots[dateStr][existingIndex],
-                    ...updatedSlot,
-                    transports: updatedSlot.transports || state.slots[dateStr][existingIndex].transports
-                  };
-                } else {
-                  // Yeni slot ekle
-                  state.slots[dateStr].push({
-                    ...updatedSlot,
-                    transports: updatedSlot.transports || []
-                  });
-                }
-              });
-              
-              // Sıralama düzenini kontrol et
-              state.slots[dateStr].sort((a, b) => {
-                const aOrder = typeof a.order === 'number' ? a.order : 0;
-                const bOrder = typeof b.order === 'number' ? b.order : 0;
-                return aOrder - bOrder;
-              });
-            });
-          }
-          console.log('Slot güncellemesi tamamlandı, tarihler:', Object.keys(state.slots));
+          // Tüm slotları tek bir array'e topla ve UTC midnight key'e göre grupla
+          let allSlots = [];
+          Object.values(slotUpdates).forEach(slotsForDate => {
+            if (Array.isArray(slotsForDate)) {
+              allSlots = allSlots.concat(slotsForDate);
+            }
+          });
+          // Slotları UTC midnight key'e göre grupla
+          const slotsByUTCKey = {};
+          allSlots.forEach(slot => {
+            const key = startOfDay(new Date(slot.date)).toISOString();
+            if (!slotsByUTCKey[key]) slotsByUTCKey[key] = [];
+            slotsByUTCKey[key].push(slot);
+          });
+          // State'e yazarken order'a göre sırala
+          Object.keys(slotsByUTCKey).forEach(key => {
+            state.slots[key] = slotsByUTCKey[key]
+              .slice()
+              .sort((a, b) => a.order - b.order);
+          });
         } 
         // 2. Durum: slotUpdates bir dizi olarak gelmiş (Socket.IO'dan)
         else if (slotUpdates && Array.isArray(slotUpdates)) {
-          console.log('Processing array-format slot updates with length:', slotUpdates.length);
-          
-          // Gelen verileri tarih bazında grupla
-          const slotsByDate = {};
-          
+          // Her slotun kendi date'inden key üret
+          const slotsByUTCKey = {};
           slotUpdates.forEach(slot => {
-            if (!slot.date) {
-              console.error('Slot için tarih bilgisi eksik:', slot);
-              return;
-            }
-            
-            const dateStr = startOfDay(new Date(slot.date)).toISOString();
-            
-            if (!slotsByDate[dateStr]) {
-              slotsByDate[dateStr] = [];
-            }
-            
-            slotsByDate[dateStr].push(slot);
+            const key = startOfDay(new Date(slot.date)).toISOString();
+            if (!slotsByUTCKey[key]) slotsByUTCKey[key] = [];
+            slotsByUTCKey[key].push(slot);
           });
-          
-          // Gruplandırılmış verileri state'e uygula
-          Object.keys(slotsByDate).forEach(dateStr => {
-            const slots = slotsByDate[dateStr];
-            
-            if (type === 'add') {
-              // Yeni slotlar ekle
-              if (!state.slots[dateStr]) {
-                state.slots[dateStr] = [];
-              }
-              
-              slots.forEach(slot => {
-                if (!state.slots[dateStr].some(s => s.id === slot.id)) {
-                  state.slots[dateStr].push({
-                    ...slot,
-                    transports: slot.transports || []
-                  });
-                }
-              });
-            } else if (type === 'update') {
-              // Mevcut slotları güncelle
-              if (state.slots[dateStr]) {
-                slots.forEach(updatedSlot => {
-                  state.slots[dateStr] = state.slots[dateStr].map(s => 
-                    s.id === updatedSlot.id 
-                      ? { 
-                          ...s, 
-                          ...updatedSlot,
-                          transports: updatedSlot.transports || s.transports 
-                        }
-                      : s
-                  );
-                });
-              }
-            } else if (type === 'remove') {
-              // Slotları kaldır
-              if (state.slots[dateStr]) {
-                slots.forEach(slotToRemove => {
-                  state.slots[dateStr] = state.slots[dateStr].filter(s => s.id !== slotToRemove.id);
-                });
-              }
-            }
+          Object.keys(slotsByUTCKey).forEach(key => {
+            state.slots[key] = slotsByUTCKey[key]
+              .slice()
+              .sort((a, b) => a.order - b.order);
           });
-          
-          console.log('Array-format slot güncellemesi tamamlandı, tarihler:', Object.keys(slotsByDate));
         }
       } catch (error) {
         console.error('updateTransportsAndSlots reducer hatası:', error);
