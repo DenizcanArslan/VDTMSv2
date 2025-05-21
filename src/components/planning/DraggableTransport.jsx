@@ -1520,7 +1520,7 @@ export default function DraggableTransport({
                               <div>{dest.frequentLocation?.name}</div>
                               {dest.destinationTime && (
                                 <div className="text-gray-400">
-                                  {format(addHours(new Date(dest.destinationTime), -1), 'dd MMM yyyy HH:mm')}
+                                  {format(new Date(dest.destinationTime), 'dd MMM yyyy')} {dest.destinationTime.substring(11, 16)}
                                 </div>
                               )}
                             </div>
