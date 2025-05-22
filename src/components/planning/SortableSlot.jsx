@@ -17,6 +17,7 @@ import ChangeDriverConfirmModal from './ChangeDriverConfirmModal';
 import ChangeTruckConfirmModal from './ChangeTruckConfirmModal';
 import { isTruckInUse, getAssignedTruckIds } from './TruckUtils';
 import { isDriverInUse, getAssignedDriverIds } from './DriverUtils';
+import { Dialog } from '@headlessui/react';
 
 export default function SortableSlot({ 
   slot, 
@@ -45,6 +46,7 @@ export default function SortableSlot({
   const dragHandleRef = useRef(null);
   const [driverQuery, setDriverQuery] = useState('');
   const [truckQuery, setTruckQuery] = useState('');
+  const [showStartNoteModal, setShowStartNoteModal] = useState(false);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -877,112 +879,23 @@ export default function SortableSlot({
                 </Combobox>
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Start time"
-                  className="text-xs border border-gray-200 rounded-md  px-2 py-0.5 lg:w-24 xl:w-36 focus:outline-none focus:ring-1 focus:ring-blue-500 text-green-500 font-bold"
-                  value={slot.driverStartNote || ''}
-                  onChange={async (e) => {
-                    const newValue = e.target.value;
-                    console.log(`Updating start time: ${slot.driverStartNote} -> ${newValue}`);
-                    
-                    // Kullanıcının aktif olarak bu alanda yazdığını belirten bir flag ekleyelim
-                    if (!window.activeInputSlots) {
-                      window.activeInputSlots = {};
-                    }
-                    
-                    // Kullanıcının bu slota aktif olarak yazdığını işaretle
-                    window.activeInputSlots[slot.id] = Date.now();
-                    
-                    // 5 saniye boyunca socket güncellemelerini görmezden gel
-                    // Bu süre boyunca gelen socket güncellemeleri bu slot için işlenmeyecek (useRealTimeUpdates.js'te kontrol edilecek)
-                    
-                    // Lokal state'i hemen güncelle - bu kullanıcı deneyimi için kritik
-                    dispatch(
-                      updateSlotDriverStartNote({
-                        dateStr,
-                        slotId: slot.id,
-                        driverStartNote: newValue,
-                      })
-                    );
-                    
-                    // Performans optimizasyonu: Eğer sonraki 1 saniye içinde değişiklik yapılmazsa API'ye gönder
-                    // Bu sayede kullanıcı yazma işlemini bitirene kadar API çağrısı yapılmaz
-                    if (window.driverStartNoteTimeouts && window.driverStartNoteTimeouts[slot.id]) {
-                      clearTimeout(window.driverStartNoteTimeouts[slot.id]);
-                    }
-                    
-                    if (!window.driverStartNoteTimeouts) {
-                      window.driverStartNoteTimeouts = {};
-                    }
-                    
-                    // Input elementine bir sınıf ekleyerek yazma durumunu göster
-                    const inputElement = e.target;
-                    inputElement.classList.add('border-yellow-400');
-                    
-                    // Gecikmeyi 1000ms (1 saniye) olarak ayarla - kullanıcı yazma işlemi tamamlandıktan sonra API'yi çağır
-                    window.driverStartNoteTimeouts[slot.id] = setTimeout(async () => {
-                      try {
-                        // API çağrısını yap - değer yazma işlemi tamamlandığında
-                        const response = await fetch(`/api/planning/slots/${slot.id}/driver-start-note`, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            driverStartNote: newValue,
-                            date: dateStr // Tarih bilgisini gönder
-                          }),
-                        });
-                        
-                        if (!response.ok) {
-                          throw new Error('Failed to update driver start note');
-                        }
-                        
-                        // API çağrısı tamamlandığında, kullanıcının aktif olarak yazmadığını işaretle
-                        // Ancak 2 saniye daha bekle - olası son düzenlemeler için
-                        setTimeout(() => {
-                          if (window.activeInputSlots && window.activeInputSlots[slot.id]) {
-                            delete window.activeInputSlots[slot.id];
-                            console.log(`Kullanıcı ${slot.id} slotunda artık yazmıyor`);
-                          }
-                        }, 2000);
-                        
-                        // Başarılı olduğunda visual feedback'i kaldır
-                        inputElement.classList.remove('border-yellow-400');
-                        inputElement.classList.add('border-green-400');
-                        
-                        // 500ms sonra normal hale geri dön
-                        setTimeout(() => {
-                          inputElement.classList.remove('border-green-400');
-                        }, 500);
-                        
-                        // Timeout'u temizle
-                        delete window.driverStartNoteTimeouts[slot.id];
-                      } catch (error) {
-                        // Hata durumunda kırmızı feedback göster
-                        inputElement.classList.remove('border-yellow-400');
-                        inputElement.classList.add('border-red-400');
-                        
-                        // 500ms sonra normal hale geri dön
-                        setTimeout(() => {
-                          inputElement.classList.remove('border-red-400');
-                        }, 500);
-                        
-                        console.error('Error updating driver start note:', error);
-                        toast.error('Failed to update driver start note');
-                      }
-                    }, 1000); // 1000ms (1 saniye) debounce - kullanıcı bir değişiklik yapmayı bitirene kadar bekle
-                  }}
-                  // Kullanıcı input'tan ayrıldığında (focus'u kaybettiğinde) işlem tamamlandı olarak değerlendir
-                  onBlur={() => {
-                    if (window.activeInputSlots && window.activeInputSlots[slot.id]) {
-                      // Kullanıcı artık bu alana yazmıyor, 2 saniye sonra socket güncellemelerini kabul etmeye devam et
-                      setTimeout(() => {
-                        delete window.activeInputSlots[slot.id];
-                        console.log(`Kullanıcı ${slot.id} slotundan focus'u kaybetti, artık yazmıyor`);
-                      }, 2000);
-                    }
-                  }}
-                />
+                <button
+                  className="text-xs border border-gray-200 rounded-md px-2 py-0.5 lg:w-40 xl:w-56 focus:outline-none focus:ring-1 focus:ring-blue-500 text-green-500 font-bold flex items-center justify-between bg-white hover:bg-gray-50 max-w-[220px]"
+                  onClick={() => setShowStartNoteModal(true)}
+                  type="button"
+                  title={slot.driverStartNote || 'Set start time'}
+                >
+                  {slot.driverStartNote ? (
+                    <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis', display:'block', maxWidth:'150px', textAlign:'left'}}>
+                      {slot.driverStartNote.length > 20
+                        ? slot.driverStartNote.slice(0, 20) + '...'
+                        : slot.driverStartNote}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Start Time</span>
+                  )}
+                  <svg className="w-4 h-4 ml-2 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 17v4h4l12-12a2.828 2.828 0 00-4-4L3 17z" /></svg>
+                </button>
                 <FiTruck className="w-3 h-3 text-gray-500" />
                 <span className="text-xs text-gray-500">
                   {slot.transports?.length || 0} transport(s)
@@ -1124,6 +1037,101 @@ export default function SortableSlot({
           }
         }}
       />
+
+      <StartNoteModal isOpen={showStartNoteModal} onClose={() => setShowStartNoteModal(false)} slot={slot} dateStr={dateStr} dispatch={dispatch} />
     </>
+  );
+}
+
+function StartNoteModal({ isOpen, onClose, slot, dateStr, dispatch }) {
+  const [value, setValue] = useState(slot.driverStartNote || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      // Redux'u hemen güncelle
+      dispatch(updateSlotDriverStartNote({
+        dateStr,
+        slotId: slot.id,
+        driverStartNote: value,
+      }));
+      // API'ye gönder
+      const response = await fetch(`/api/planning/slots/${slot.id}/driver-start-note`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverStartNote: value, date: dateStr }),
+      });
+      if (!response.ok) throw new Error('Failed to update start note');
+      toast.success('Start time updated');
+      onClose();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black bg-opacity-30" />
+        </Transition.Child>
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-8 text-left align-middle shadow-xl transition-all">
+                <Dialog.Title as="h3" className="text-2xl font-bold mb-6 text-gray-900">
+                  Edit Start Time
+                </Dialog.Title>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  value={value}
+                  onChange={e => setValue(e.target.value)}
+                  placeholder="Enter start time"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-3 mt-8">
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 transition"
+                    onClick={onClose}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-md bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition disabled:opacity-60"
+                    onClick={handleSave}
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
   );
 } 
