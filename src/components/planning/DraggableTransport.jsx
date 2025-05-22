@@ -948,7 +948,6 @@ export default function DraggableTransport({
         trailerId: trailerId
       })).unwrap();
       
-      toast.success('Trailer assigned successfully');
     } catch (error) {
       console.error('Error updating trailer:', error);
       toast.error('Failed to update trailer');
@@ -1488,7 +1487,7 @@ export default function DraggableTransport({
             </div>
 
             {/* Departure/Return göstergesi */}
-            {(transport.departureDate || transport.returnDate) && (
+            {(transport.departureDate || transport.returnDate || transport.destinations?.length > 1) && (
               <div className="date-tooltip-group relative flex items-center gap-0.5 ml-0">
                 {/* Tek tooltip tüm tarihler için */}
                 <div className="absolute bottom-full left-0 mb-1 px-1.5 py-0.5 bg-gray-900 text-white text-[8px] 

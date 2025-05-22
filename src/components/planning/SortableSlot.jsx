@@ -40,6 +40,7 @@ export default function SortableSlot({
   const [showTruckChangeConfirm, setShowTruckChangeConfirm] = useState(false);
   const [pendingTruckId, setPendingTruckId] = useState(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [reorderingTransportId, setReorderingTransportId] = useState(null);
   const contextMenuRef = useRef(null);
   const dragHandleRef = useRef(null);
   const [driverQuery, setDriverQuery] = useState('');
@@ -215,26 +216,23 @@ export default function SortableSlot({
   const handleMoveUp = async (transport) => {
     const currentIndex = sortedTransports.findIndex(t => t.id === transport.id);
     if (currentIndex > 0) {
+      setReorderingTransportId(transport.id);
       const newTransports = [...sortedTransports];
       const temp = newTransports[currentIndex];
       newTransports[currentIndex] = newTransports[currentIndex - 1];
       newTransports[currentIndex - 1] = temp;
 
-      // Frontend optimistik güncelleme
-      dispatch(updateSlotTransports({
-        dateStr: dateStr || startOfDay(new Date()).toISOString(),
-        slotId: slot.id,
-        updatedTransports: newTransports.map((t, index) => ({
-          ...t,
-          slotOrder: index,
-          slotAssignments: [{
-            ...t.slotAssignments[0],
-            slotOrder: index
-          }]
-        }))
-      }));
+      // Önceki transport listesini sakla
+      const previousTransports = [...sortedTransports];
 
       try {
+        // Frontend optimistik güncelleme
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: newTransports
+        }));
+
         // Backend güncelleme
         const response = await fetch(`/api/planning/slots/${slot.id}/reorder`, {
           method: 'PUT',
@@ -247,11 +245,39 @@ export default function SortableSlot({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to reorder transport');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to reorder transport');
         }
+
+        // Backend'den gelen güncel veriyi al
+        const updatedSlot = await response.json();
+
+        // Redux store'u backend'den gelen veri ile güncelle
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: updatedSlot.transports.map(ts => ({
+            ...ts.transport,
+            slotOrder: ts.slotOrder,
+            slotAssignments: [{
+              ...ts,
+              slotOrder: ts.slotOrder
+            }]
+          }))
+        }));
+
       } catch (error) {
         console.error('Error reordering transport:', error);
-        toast.error('Failed to reorder transport');
+        toast.error(error.message || 'Failed to reorder transport');
+
+        // Hata durumunda önceki duruma geri dön
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: previousTransports
+        }));
+      } finally {
+        setReorderingTransportId(null);
       }
     }
   };
@@ -259,26 +285,23 @@ export default function SortableSlot({
   const handleMoveDown = async (transport) => {
     const currentIndex = sortedTransports.findIndex(t => t.id === transport.id);
     if (currentIndex < sortedTransports.length - 1) {
+      setReorderingTransportId(transport.id);
       const newTransports = [...sortedTransports];
       const temp = newTransports[currentIndex];
       newTransports[currentIndex] = newTransports[currentIndex + 1];
       newTransports[currentIndex + 1] = temp;
 
-      // Frontend optimistik güncelleme
-      dispatch(updateSlotTransports({
-        dateStr: dateStr || startOfDay(new Date()).toISOString(),
-        slotId: slot.id,
-        updatedTransports: newTransports.map((t, index) => ({
-          ...t,
-          slotOrder: index,
-          slotAssignments: [{
-            ...t.slotAssignments[0],
-            slotOrder: index
-          }]
-        }))
-      }));
+      // Önceki transport listesini sakla
+      const previousTransports = [...sortedTransports];
 
       try {
+        // Frontend optimistik güncelleme
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: newTransports
+        }));
+
         // Backend güncelleme
         const response = await fetch(`/api/planning/slots/${slot.id}/reorder`, {
           method: 'PUT',
@@ -291,11 +314,39 @@ export default function SortableSlot({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to reorder transport');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to reorder transport');
         }
+
+        // Backend'den gelen güncel veriyi al
+        const updatedSlot = await response.json();
+
+        // Redux store'u backend'den gelen veri ile güncelle
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: updatedSlot.transports.map(ts => ({
+            ...ts.transport,
+            slotOrder: ts.slotOrder,
+            slotAssignments: [{
+              ...ts,
+              slotOrder: ts.slotOrder
+            }]
+          }))
+        }));
+
       } catch (error) {
         console.error('Error reordering transport:', error);
-        toast.error('Failed to reorder transport');
+        toast.error(error.message || 'Failed to reorder transport');
+
+        // Hata durumunda önceki duruma geri dön
+        dispatch(updateSlotTransports({
+          dateStr: dateStr || startOfDay(new Date()).toISOString(),
+          slotId: slot.id,
+          updatedTransports: previousTransports
+        }));
+      } finally {
+        setReorderingTransportId(null);
       }
     }
   };
@@ -955,8 +1006,18 @@ export default function SortableSlot({
               <div 
                 key={transport.id}
                 id={`slot-transport-${transport.id}`}
-                className={highlightedTransports.includes(transport.id) ? 'ring-2 ring-yellow-400 rounded-lg shadow-md shadow-yellow-200 animate-pulse' : ''}
+                className={`relative ${highlightedTransports.includes(transport.id) ? 'ring-2 ring-yellow-400 rounded-lg shadow-md shadow-yellow-200 animate-pulse' : ''}`}
               >
+                {reorderingTransportId === transport.id && (
+                  <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-50 flex items-center justify-center rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-xs text-blue-600 font-medium">
+                        Updating...
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <DraggableTransport
                   transport={transport}
                   onUnassign={handleUnassign}

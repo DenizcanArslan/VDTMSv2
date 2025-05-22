@@ -331,7 +331,7 @@ const useRealTimeUpdates = () => {
               } else if (data.currentStatus === 'COMPLETED') {
                 showToastDebounced('Transport marked as completed');
               } else if (data.currentStatus === 'ONGOING') {
-                showToastDebounced('Transport marked as ongoing');
+              
               }
             }
             return;
@@ -353,9 +353,7 @@ const useRealTimeUpdates = () => {
             // Notify based on status change
             if (data.sentToDriver && data.currentStatus === 'PLANNED') {
               showToastDebounced('Transport sent to driver');
-            } else if (data.currentStatus === 'COMPLETED') {
-              showToastDebounced('Transport marked as completed');
-            } else if (data.currentStatus === 'ONGOING') {
+            }  else if (data.currentStatus === 'ONGOING') {
               showToastDebounced('Transport marked as ongoing');
             }
           }
@@ -645,7 +643,6 @@ const useRealTimeUpdates = () => {
           if (isUpdating.current) {
             console.log('Already updating, skipping redundant API call for driver assignment');
             if (isInPlanningPage) {
-              showToastDebounced('Driver assigned to slot');
             }
             return;
           }
@@ -654,7 +651,6 @@ const useRealTimeUpdates = () => {
           
           // Sadece planning sayfasındaysa bildirim göster
           if (isInPlanningPage) {
-            showToastDebounced('Driver assigned to slot');
           }
         } catch (error) {
           console.error('Driver atama sonrası veri güncelleme hatası:', error);
@@ -669,9 +665,6 @@ const useRealTimeUpdates = () => {
           // If already updating, skip additional API call
           if (isUpdating.current) {
             console.log('Already updating, skipping redundant API call for truck assignment');
-            if (isInPlanningPage) {
-              showToastDebounced('Truck assigned to slot');
-            }
             return;
           }
           
@@ -679,7 +672,6 @@ const useRealTimeUpdates = () => {
           
           // Sadece planning sayfasındaysa bildirim göster
           if (isInPlanningPage) {
-            showToastDebounced('Truck assigned to slot');
           }
         } catch (error) {
           console.error('Truck atama sonrası veri güncelleme hatası:', error);
@@ -796,9 +788,7 @@ const useRealTimeUpdates = () => {
           }
           
           // Sadece planning sayfasındaysa bildirim göster
-          if (isInPlanningPage) {
-            showToastDebounced('Slot positions updated');
-          }
+         
 
           console.log('\n========== SLOT REORDER EVENT COMPLETED ==========\n');
         } catch (error) {
@@ -831,7 +821,6 @@ const useRealTimeUpdates = () => {
                   showToastDebounced(`Slots updated: now ${data.currentCount} slots`, 'info');
                   break;
                 default:
-                  showToastDebounced('Planning data updated', 'info');
               }
             } else {
               showToastDebounced('Planning data updated', 'info');

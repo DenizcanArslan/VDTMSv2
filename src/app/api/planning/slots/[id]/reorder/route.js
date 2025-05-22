@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 import { NextResponse } from "next/server";
-import { startOfDay, endOfDay } from "date-fns";
+import { startOfDay, endOfDay, parseISO, addDays } from "date-fns";
 import { getSocketServerUrl } from '@/lib/websocket';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,25 +34,33 @@ export async function PUT(request, { params }) {
     const { id } = params;
     const { transportId, direction, date } = await request.json();
 
-    // Slot'taki transport'ları sıralı şekilde al
+    console.log('Reorder request received:', { slotId: id, transportId, direction, date });
+
+    if (!date) {
+      return NextResponse.json(
+        { error: 'Date is required' },
+        { status: 400 }
+      );
+    }
+
+    // Tarihi parse et ve UTC'den local'e çevir
+    const parsedDate = parseISO(date);
+    // UTC tarihini local tarihe çevir (1 gün ekle)
+    const localDate = addDays(parsedDate, 1);
+    const startDate = startOfDay(localDate);
+    const endDate = endOfDay(localDate);
+
+    console.log('Date range:', {
+      originalDate: date,
+      parsedDate: parsedDate.toISOString(),
+      localDate: localDate.toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    });
+
+    // Önce slot'u bul
     const slot = await prisma.planningSlot.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        transports: {
-          where: {
-            date: {
-              gte: startOfDay(new Date(date)),
-              lt: endOfDay(new Date(date))
-            }
-          },
-          include: {
-            transport: true
-          },
-          orderBy: {
-            slotOrder: 'asc'
-          }
-        }
-      }
+      where: { id: parseInt(id) }
     });
 
     if (!slot) {
@@ -62,8 +70,49 @@ export async function PUT(request, { params }) {
       );
     }
 
+    // Slot'un transport'larını al
+    const transports = await prisma.transportSlot.findMany({
+      where: {
+        slotId: parseInt(id),
+        date: {
+          gte: startDate,
+          lt: endDate
+        }
+      },
+      include: {
+        transport: {
+          include: {
+            client: true,
+            destinations: {
+              include: {
+                frequentLocation: true
+              }
+            },
+            pickUpQuay: true,
+            dropOffQuay: true
+          }
+        }
+      },
+      orderBy: {
+        slotOrder: 'asc'
+      }
+    });
+
+    console.log('Found transports:', {
+      slotId: slot.id,
+      transportCount: transports.length,
+      transports: transports.map(t => ({
+        id: t.id,
+        transportId: t.transport.id,
+        currentOrder: t.slotOrder,
+        date: t.date
+      }))
+    });
+
     // Transport'un mevcut indeksini bul
-    const currentIndex = slot.transports.findIndex(t => t.transport.id === parseInt(transportId));
+    const currentIndex = transports.findIndex(t => t.transport.id === parseInt(transportId));
+    console.log('Current transport index:', { currentIndex, transportId });
+
     if (currentIndex === -1) {
       return NextResponse.json(
         { error: 'Transport not found in slot' },
@@ -73,91 +122,97 @@ export async function PUT(request, { params }) {
 
     // Yeni indeksi hesapla
     const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= slot.transports.length) {
+    console.log('New index calculated:', { newIndex, direction });
+
+    if (newIndex < 0 || newIndex >= transports.length) {
       return NextResponse.json(
         { error: 'Cannot move transport further' },
         { status: 400 }
       );
     }
 
-    // Takas edilecek transport'ları al
-    const currentTransport = slot.transports[currentIndex];
-    const targetTransport = slot.transports[newIndex];
+    // Tüm transport'ları yeni sıralamaya göre güncelle
+    const reorderedTransports = [...transports];
+    const [movedTransport] = reorderedTransports.splice(currentIndex, 1);
+    reorderedTransports.splice(newIndex, 0, movedTransport);
 
-    console.log('Slot:', {
-      id: slot.id,
-      transportsCount: slot.transports.length
-    });
+    console.log('Reordered transports:', reorderedTransports.map(t => ({
+      id: t.id,
+      transportId: t.transport.id,
+      newOrder: reorderedTransports.indexOf(t),
+      date: t.date
+    })));
 
-    console.log('Current transport:', {
-      id: currentTransport.id,
-      currentOrder: currentTransport.slotOrder,
-      newOrder: targetTransport.slotOrder,
-      transportId: currentTransport.transport.id
-    });
-    console.log('Target transport:', {
-      id: targetTransport.id,
-      currentOrder: targetTransport.slotOrder,
-      newOrder: currentTransport.slotOrder,
-      transportId: targetTransport.transport.id
-    });
+    try {
+      // Her bir transport için slotOrder'ı güncelle
+      await prisma.$transaction(
+        reorderedTransports.map((ts, index) => 
+          prisma.transportSlot.update({
+            where: {
+              id: ts.id
+            },
+            data: {
+              slotOrder: index
+            }
+          })
+        )
+      );
 
-    // Sıraları değiştir
-    const updates = [
-      prisma.transportSlot.update({
-        where: { id: currentTransport.id },
-        data: { 
-          slotOrder: targetTransport.slotOrder 
+      console.log('Database update completed successfully');
+    } catch (updateError) {
+      console.error('Error updating transport orders:', updateError);
+      throw new Error(`Failed to update transport orders: ${updateError.message}`);
+    }
+
+    // Güncellenmiş transport'ları getir
+    const updatedTransports = await prisma.transportSlot.findMany({
+      where: {
+        slotId: parseInt(id),
+        date: {
+          gte: startDate,
+          lt: endDate
         }
-      }),
-      prisma.transportSlot.update({
-        where: { id: targetTransport.id },
-        data: { 
-          slotOrder: currentTransport.slotOrder 
-        }
-      })
-    ];
-
-    console.log('Updates:', updates);
-
-    await prisma.$transaction(updates);
-
-    // Güncellenmiş slot'u getir
-    const updatedSlot = await prisma.planningSlot.findUnique({
-      where: { id: parseInt(id) },
+      },
       include: {
-        transports: {
-          where: {
-            date: {
-              gte: startOfDay(new Date(date)),
-              lt: endOfDay(new Date(date))
-            }
-          },
+        transport: {
           include: {
-            transport: {
+            client: true,
+            destinations: {
               include: {
-                client: true,
-                destinations: {
-                  include: {
-                    frequentLocation: true
-                  }
-                },
-                pickUpQuay: true,
-                dropOffQuay: true
+                frequentLocation: true
               }
-            }
-          },
-          orderBy: {
-            slotOrder: 'asc'
+            },
+            pickUpQuay: true,
+            dropOffQuay: true
           }
         }
+      },
+      orderBy: {
+        slotOrder: 'asc'
       }
     });
 
-    // Socket.IO bildirimi gönder
-    await sendSocketNotification('slot:update', updatedSlot);
+    console.log('Final updated transports:', {
+      slotId: slot.id,
+      transportCount: updatedTransports.length,
+      transports: updatedTransports.map(t => ({
+        id: t.id,
+        transportId: t.transport.id,
+        finalOrder: t.slotOrder,
+        date: t.date
+      }))
+    });
 
-    return NextResponse.json(updatedSlot);
+    // Socket.IO bildirimi gönder
+    await sendSocketNotification('slot:update', {
+      ...slot,
+      transports: updatedTransports
+    });
+
+    return NextResponse.json({
+      ...slot,
+      transports: updatedTransports
+    });
   } catch (error) {
     console.error('Error reordering transport:', error);
     return NextResponse.json(
