@@ -35,36 +35,36 @@ model Driver {
 }
 
 model Truck {
-  id                  Int                  @id @default(autoincrement())
-  licensePlate        String               @unique
-  model               String?
-  modelYear           Int?
-  chasisNumber        String?              @unique
-  genset              GENSET
-  nickName            String               @unique
-  insuranceExpireDate DateTime?
-  isActive            Boolean              @default(true)
-  slots               PlanningSlot[]
-  transports          Transport[]
-  transportLicense    TransportLicense?
-  inspections         VehicleInspection[]
-  maintenances        VehicleMaintenance[]
+  id                      Int             @id @default(autoincrement())
+  licensePlate            String          @unique
+  model                   String?
+  modelYear               Int?
+  chasisNumber            String?         @unique
+  genset                  GENSET
+  nickName                String          @unique
+  insuranceExpireDate     DateTime?
+  isActive                Boolean         @default(true)
+  slots                   PlanningSlot[]
+  transports              Transport[]
+  transportLicense        TransportLicense?
+  inspections             VehicleInspection[]
+  maintenances           VehicleMaintenance[]
 }
 
 model Trailer {
-  id                  Int                  @id @default(autoincrement())
-  licensePlate        String               @unique
-  model               String?
-  modelYear           Int?
-  chasisNumber        String?              @unique
-  genset              GENSET
-  nickName            String               @unique
-  insuranceExpireDate DateTime?
-  isActive            Boolean              @default(true)
-  currentParking      TrailerParking?
-  transports          Transport[]
-  inspections         VehicleInspection[]
-  maintenances        VehicleMaintenance[]
+  id                      Int             @id @default(autoincrement())
+  licensePlate            String          @unique
+  model                   String?
+  modelYear               Int?
+  chasisNumber            String?         @unique
+  genset                  GENSET
+  nickName                String          @unique
+  insuranceExpireDate     DateTime?
+  isActive                Boolean         @default(true)
+  currentParking          TrailerParking?
+  transports              Transport[]
+  inspections             VehicleInspection[]
+  maintenances           VehicleMaintenance[]
 }
 
 model Client {
@@ -165,6 +165,7 @@ model Transport {
   dropOffTarPositive        Boolean                @default(false)
   pickUpTarPositive         Boolean                @default(false)
   cutInfo                   CutInfo?
+  scrCpuNote                String?                // SCR/CPU ile ilgili not
   client                    Client                 @relation(fields: [clientId], references: [id])
   dropOffQuay               Quay?                  @relation("dropOffRelation", fields: [dropOffQuayId], references: [id])
   originalTransport         Transport?             @relation("CutFromOriginal", fields: [originalTransportId], references: [id])

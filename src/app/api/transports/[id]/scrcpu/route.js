@@ -26,13 +26,14 @@ const sendSocketNotification = async (event, data) => {
 export async function PUT(request, { params }) {
   try {
     const { id } = params;
-    const { status, color } = await request.json();
+    const { status, color, scrCpuNote } = await request.json();
 
     const updatedTransport = await prisma.transport.update({
       where: { id: parseInt(id) },
       data: {
         scrCpuStatus: status,
         scrCpuColor: color,
+        scrCpuNote: scrCpuNote,
       },
       include: {
         client: true,
