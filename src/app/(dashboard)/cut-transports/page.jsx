@@ -7,6 +7,7 @@ import { MdOutlineAcUnit, MdOutlineDangerous } from 'react-icons/md';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import EditCutTransportModal from '@/components/planning/EditCutTransportModal';
 
 export default function CutTransportsPage() {
   const [cutTransports, setCutTransports] = useState([]);
@@ -36,6 +37,8 @@ export default function CutTransportsPage() {
   const [restoreNotes, setRestoreNotes] = useState('');
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [transportToDelete, setTransportToDelete] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTransport, setEditTransport] = useState(null);
   
   const router = useRouter();
 
@@ -711,8 +714,8 @@ export default function CutTransportsPage() {
                       </div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-right">
-                      {transport.isCut && !transport.isRestored ? (
-                        <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1">
+                        {transport.isCut && !transport.isRestored && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -723,28 +726,7 @@ export default function CutTransportsPage() {
                           >
                             Add to Planning
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTransport(transport);
-                              setShowTransportDetailModal(true);
-                            }}
-                            className="text-[10px] text-gray-600 hover:text-gray-900 bg-gray-50 px-1.5 py-0.5 rounded"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTransportToDelete(transport);
-                              setShowDeleteConfirmModal(true);
-                            }}
-                            className="text-[10px] text-red-600 hover:text-red-900 bg-red-50 px-1.5 py-0.5 rounded"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ) : (
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -755,7 +737,27 @@ export default function CutTransportsPage() {
                         >
                           View
                         </button>
-                      )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTransportToDelete(transport);
+                            setShowDeleteConfirmModal(true);
+                          }}
+                          className="text-[10px] text-red-600 hover:text-red-900 bg-red-50 px-1.5 py-0.5 rounded"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditTransport(transport);
+                            setShowEditModal(true);
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1309,6 +1311,17 @@ export default function CutTransportsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showEditModal && editTransport && (
+        <EditCutTransportModal
+          transport={editTransport}
+          onClose={() => setShowEditModal(false)}
+          onSave={(updated) => {
+            setShowEditModal(false);
+            fetchCutTransports();
+          }}
+        />
       )}
     </div>
   );

@@ -573,4 +573,66 @@ export async function DELETE(request, { params }) {
       { status: 500 }
     );
   }
+}
+
+export async function PATCH(request, { params }) {
+  try {
+    const { id } = params;
+    const transportId = parseInt(id);
+    const { cutDate, location, notes } = await request.json();
+
+    // Transport ve cutInfo'yu bul
+    const transport = await prisma.transport.findUnique({
+      where: { id: transportId },
+      include: { cutInfo: true }
+    });
+    if (!transport || !transport.cutInfo) {
+      return NextResponse.json({ error: 'Cut transport not found' }, { status: 404 });
+    }
+
+    // cutDate güncelle
+    let cutStartDate = transport.cutInfo.cutStartDate;
+    if (cutDate) {
+      cutStartDate = new Date(cutDate);
+    }
+
+    // location güncelle (hem locationId hem customLocation olabilir)
+    let locationId = null;
+    let customLocation = null;
+    if (location) {
+      // Eğer location bir sayı ise locationId olarak kaydet
+      if (!isNaN(location)) {
+        locationId = parseInt(location);
+      } else {
+        customLocation = location;
+      }
+    }
+
+    // Güncelleme işlemi
+    const updatedCutInfo = await prisma.cutInfo.update({
+      where: { id: transport.cutInfo.id },
+      data: {
+        cutStartDate,
+        locationId,
+        customLocation,
+        notes,
+      }
+    });
+
+    // Güncellenmiş transport'u döndür
+    const updatedTransport = await prisma.transport.findUnique({
+      where: { id: transportId },
+      include: {
+        client: true,
+        cutInfo: true,
+        trailer: true,
+        truck: true,
+      }
+    });
+
+    return NextResponse.json(updatedTransport, { status: 200 });
+  } catch (error) {
+    console.error('Error updating cut transport:', error);
+    return NextResponse.json({ error: 'Failed to update cut transport', details: error.message }, { status: 500 });
+  }
 } 
