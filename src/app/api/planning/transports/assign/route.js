@@ -89,16 +89,7 @@ export async function PUT(request) {
           });
           console.log('Updated existing TransportSlot, set slotId to null:', existingSlots[0].id);
         } else {
-          await tx.transportSlot.create({
-            data: {
-              transport: {
-                connect: { id: transportId }
-              },
-              date: utcDate,
-              slotOrder: 0
-            }
-          });
-          console.log('Created new TransportSlot with null slotId');
+          console.log('No existing TransportSlot found for unassign, nothing to update.');
         }
       } else {
         if (existingSlots.length > 0) {

@@ -157,12 +157,23 @@ export default function SortableSlot({
         throw new Error('No slot assignments found for this transport');
       }
 
-      // Transport'un gerçek atama tarihini bul
-      const currentAssignment = transport.slotAssignments[0];
+      // Mevcut slot'un assignment'ını bul
+      const currentAssignment = transport.slotAssignments.find(
+        assignment => assignment.slotId === slot.id
+      );
 
       if (!currentAssignment) {
-        throw new Error('Transport assignment not found');
+        throw new Error('Transport assignment not found for this slot');
       }
+
+      // Tarihi UTC midnight'a normalize et
+      const assignmentDate = new Date(currentAssignment.date);
+      const utcMidnight = new Date(Date.UTC(
+        assignmentDate.getFullYear(),
+        assignmentDate.getMonth(),
+        assignmentDate.getDate(),
+        0, 0, 0, 0
+      ));
 
       // Önce transport'un status ve ETA'larını güncelle
       await dispatch(updateTransportCurrentStatus({
@@ -185,7 +196,7 @@ export default function SortableSlot({
       console.log('Unassigning transport:', {
         transportId: transport.id,
         currentSlot: slot.id,
-        assignmentDate: currentAssignment.date,
+        assignmentDate: utcMidnight.toISOString(),
         allAssignments: transport.slotAssignments
       });
 
@@ -197,7 +208,7 @@ export default function SortableSlot({
         body: JSON.stringify({
           transportId: transport.id,
           slotId: null,
-          date: currentAssignment.date
+          date: utcMidnight.toISOString()
         }),
       });
 
