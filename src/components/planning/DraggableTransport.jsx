@@ -308,6 +308,8 @@ export default function DraggableTransport({
   const { on, off } = useSocket(); // Add this line to get socket hooks
   
   const [isCutModalOpen, setIsCutModalOpen] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   
   // Listen for real-time Socket.IO updates on transport changes
   useEffect(() => {
@@ -1422,6 +1424,26 @@ export default function DraggableTransport({
     }
   };
 
+  const handleCancelTransport = async () => {
+    setIsCancelling(true);
+    try {
+      const response = await fetch(`/api/planning/transports/${transport.id}/cancel`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error('Failed to cancel transport');
+      toast.success('Transport cancelled successfully');
+      setShowCancelModal(false);
+      if (typeof onCancel === 'function') {
+        onCancel(transport);
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to cancel transport');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <>
       <div
@@ -2042,52 +2064,53 @@ export default function DraggableTransport({
               </button>
 
               {/* Drag handle */}
-              <div 
-                ref={slotDropdownRef}
-                className="relative flex-shrink-0"
-              >
-              <div
-                {...attributes}
-                {...listeners}
-                  className="p-0.5 sm:p-1 lg:p-1 cursor-move hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 flex items-center justify-center"
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setShowSlotDropdown(true);
-                  }}
+              {transport.status !== 'CANCELLED' && (
+                <div
+                  ref={slotDropdownRef}
+                  className="relative flex-shrink-0"
                 >
-                  <FiMove className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
-                </div>
-                
-                {/* Slot Dropdown */}
-                {showSlotDropdown && (
-                  <div className="absolute right-0 mt-1 w-28 sm:w-32 lg:w-36 bg-white rounded-md shadow-lg z-50 py-0.5 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px]">
-                    <div className="px-1 lg:px-2 py-0.5 lg:py-1 text-[6px] sm:text-[7px] lg:text-[8px] font-medium text-gray-500 border-b border-gray-100">
-                      Move to Slot:
-                    </div>
-                    <div className="max-h-36 sm:max-h-40 lg:max-h-48 overflow-y-auto">
-                      {currentSlots && currentSlots.length > 0 ? (
-                        currentSlots.map((targetSlot) => (
-                          <button
-                            key={targetSlot.id}
-                            onClick={() => handleMoveToSlot(targetSlot.id)}
-                            className={`w-full text-left px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px] hover:bg-gray-100 flex items-center justify-between ${
-                              slot && targetSlot.id === slot.id ? 'bg-gray-50 text-gray-400' : 'text-gray-700'
-                            }`}
-                            disabled={slot && targetSlot.id === slot.id}
-                          >
-                            <span>Truck {targetSlot.slotNumber}</span>
-                            {slot && targetSlot.id === slot.id && (
-                              <span className="text-[6px] sm:text-[7px] lg:text-[8px] text-gray-400">(current)</span>
-                            )}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px] text-gray-500">No slots available</div>
-                      )}
-                    </div>
+                  <div
+                    {...attributes}
+                    {...listeners}
+                    className="p-0.5 sm:p-1 lg:p-1 cursor-move hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 flex items-center justify-center"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setShowSlotDropdown(true);
+                    }}
+                  >
+                    <FiMove className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
                   </div>
-                )}
-              </div>
+                  {/* Slot Dropdown */}
+                  {showSlotDropdown && (
+                    <div className="absolute right-0 mt-1 w-28 sm:w-32 lg:w-36 bg-white rounded-md shadow-lg z-50 py-0.5 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px]">
+                      <div className="px-1 lg:px-2 py-0.5 lg:py-1 text-[6px] sm:text-[7px] lg:text-[8px] font-medium text-gray-500 border-b border-gray-100">
+                        Move to Slot:
+                      </div>
+                      <div className="max-h-36 sm:max-h-40 lg:max-h-48 overflow-y-auto">
+                        {currentSlots && currentSlots.length > 0 ? (
+                          currentSlots.map((targetSlot) => (
+                            <button
+                              key={targetSlot.id}
+                              onClick={() => handleMoveToSlot(targetSlot.id)}
+                              className={`w-full text-left px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px] hover:bg-gray-100 flex items-center justify-between ${
+                                slot && targetSlot.id === slot.id ? 'bg-gray-50 text-gray-400' : 'text-gray-700'
+                              }`}
+                              disabled={slot && targetSlot.id === slot.id}
+                            >
+                              <span>Truck {targetSlot.slotNumber}</span>
+                              {slot && targetSlot.id === slot.id && (
+                                <span className="text-[6px] sm:text-[7px] lg:text-[8px] text-gray-400">(current)</span>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-[7px] sm:text-[8px] lg:text-[9px] text-gray-500">No slots available</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Üç nokta menüsü - En sağda */}
               <Menu as="div" className="relative flex-shrink-0">
@@ -2199,6 +2222,22 @@ export default function DraggableTransport({
                       >
                         <FiSend className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
                         {transport.sentToDriver ? 'Unassign from Driver' : 'Send to Driver'}
+                      </button>
+                    )}
+                  </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowCancelModal(true);
+                        }}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } flex items-center gap-0.5 lg:gap-1 w-full px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-red-600`}
+                      >
+                        <FiAlertTriangle className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
+                        Cancel Transport
                       </button>
                     )}
                   </Menu.Item>
@@ -2411,6 +2450,61 @@ export default function DraggableTransport({
                   Unassign Transport
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] max-w-md">
+            <div className="flex items-center gap-3 mb-6">
+              <FiAlertTriangle className="text-red-500 w-6 h-6" />
+              <h2 className="text-xl font-semibold text-gray-800">Cancel Transport</h2>
+            </div>
+            <p className="mb-6 text-gray-600">
+              Are you sure you want to cancel this transport? This action cannot be undone.
+            </p>
+            <div className="bg-gray-50 p-4 rounded-md mb-6">
+              <div className="text-sm">
+                <span className="font-medium">Transport: </span>
+                <span>{transport.transportOrderNumber}</span>
+              </div>
+              {transport.containerNumber && (
+                <div className="text-sm mt-1">
+                  <span className="font-medium">Container: </span>
+                  <span>{transport.containerNumber}</span>
+                </div>
+              )}
+              <div className="text-sm mt-1">
+                <span className="font-medium">Client: </span>
+                <span>{transport.client?.name}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                disabled={isCancelling}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCancelTransport}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+                disabled={isCancelling}
+              >
+                {isCancelling ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Cancelling...</span>
+                  </>
+                ) : (
+                  <>
+                    <FiAlertTriangle className="w-4 h-4" />
+                    <span>Confirm Cancel</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

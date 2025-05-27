@@ -21,6 +21,7 @@ import UnassignDriverConfirmModal from './UnassignDriverConfirmModal';
 import { scroller } from 'react-scroll';
 import { useSelector } from 'react-redux';
 import Spinner from '@/components/Spinner';
+import { useSocket } from '@/context/SocketContext';
 
 const TransportsList = ({ 
   selectedSlotNumber, 
@@ -63,6 +64,7 @@ const TransportsList = ({
   const [isSettingSlots, setIsSettingSlots] = useState(false);
   const [showSetTotalSlotsModal, setShowSetTotalSlotsModal] = useState(false);
   const [isDateChanging, setIsDateChanging] = useState(false);
+  const { on } = useSocket();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -101,6 +103,25 @@ const TransportsList = ({
       (!assignmentOnDate || !assignmentOnDate.slotId) &&
       !transport.isCut &&
       transport.currentStatus !== "CUT";
+  });
+
+  const cancelledTransports = transports.filter(transport => {
+    const hasDestinationOnDate = transport.destinations?.some(dest => 
+      startOfDay(new Date(dest.destinationDate)).getTime() === startOfDay(new Date(selectedDate)).getTime()
+    ) || false;
+
+    const isDepartureDate = transport.departureDate && 
+      startOfDay(new Date(transport.departureDate)).getTime() === startOfDay(new Date(selectedDate)).getTime();
+
+    const isReturnDate = transport.returnDate && 
+      startOfDay(new Date(transport.returnDate)).getTime() === startOfDay(new Date(selectedDate)).getTime();
+
+    const isInDateRange = transport.departureDate && transport.returnDate && 
+      new Date(selectedDate) >= startOfDay(new Date(transport.departureDate)) && 
+      new Date(selectedDate) <= startOfDay(new Date(transport.returnDate));
+
+    return transport.status === "CANCELLED" && 
+      (hasDestinationOnDate || isDepartureDate || isReturnDate || isInDateRange);
   });
 
   const handleAddSlot = async () => {
@@ -1133,6 +1154,28 @@ const TransportsList = ({
     }
   }, [highlightedTransports]);
 
+  // Listen for cancelled transport events from the server
+  useEffect(() => {
+    const handleTransportCancelled = (updatedTransport) => {
+      dispatch(updateTransportsAndSlots({
+        transportUpdates: [updatedTransport],
+        type: 'update'
+      }));
+    };
+    const unsubscribe = on && on('transport:cancelled', handleTransportCancelled);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [on, dispatch]);
+
+  // Cancel callback for DraggableTransport
+  const handleTransportCancel = (updatedTransport) => {
+    dispatch(updateTransportsAndSlots({
+      transportUpdates: [updatedTransport],
+      type: 'update'
+    }));
+  };
+
   return (
     <div className={`bg-white p-4 rounded-lg shadow transition-opacity duration-200 ${isReordering ? 'opacity-50' : ''}`}>
       <div className="flex justify-between items-center mb-4">
@@ -1258,6 +1301,7 @@ const TransportsList = ({
                         onHold={handleHoldConfirm}
                         onUnassign={handleUnassign}
                         isHighlighted={isHighlighted}
+                        onCancel={handleTransportCancel}
                       />
                     </div>
                   );
@@ -1295,7 +1339,7 @@ const TransportsList = ({
                         setShowDeleteModal(true);
                       }}
                       slots={currentSlots}
-                      transports={transports}
+                      transports={transports.filter(t => t.status !== 'CANCELLED')}
                       isReordering={reorderingSlotId === slot.id}
                       dateStr={currentDateStr}
                       onHold={handleHoldConfirm}
@@ -1314,6 +1358,44 @@ const TransportsList = ({
               </div>
             </SortableContext>
           </div>
+
+          {/* Cancelled Transports Section - moved to the very bottom */}
+          {cancelledTransports.length > 0 && (
+            <div className="border-2 border-red-200 bg-red-50 rounded-lg p-4 mt-4">
+              <h3 className="font-medium text-red-700 text-xs mb-3">Cancelled Transports</h3>
+              <div className="space-y-2">
+                {cancelledTransports.map(transport => {
+                  const selectedDateObj = startOfDay(new Date(selectedDate));
+                  const isInDateRange = transport.departureDate && transport.returnDate && 
+                    selectedDateObj > startOfDay(new Date(transport.departureDate)) && 
+                    selectedDateObj < startOfDay(new Date(transport.returnDate));
+                  
+                  const isHighlighted = highlightedTransports.includes(transport.id);
+
+                  return (
+                    <div 
+                      key={transport.id}
+                      id={`cancelled-transport-${transport.id}`}
+                      className={`bg-white rounded-lg border border-red-200 group relative ${
+                        isHighlighted ? 'ring-2 ring-yellow-400 shadow-md shadow-yellow-200 animate-pulse' : ''
+                      }`}
+                    >
+                      <DraggableTransport 
+                        transport={transport}
+                        isInDateRange={isInDateRange}
+                        onEdit={handleEditTransport}
+                        onDelete={handleDeleteConfirm}
+                        onHold={handleHoldConfirm}
+                        onUnassign={handleUnassign}
+                        isHighlighted={isHighlighted}
+                        onCancel={handleTransportCancel}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <DragOverlay>
