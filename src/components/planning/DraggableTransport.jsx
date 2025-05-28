@@ -1566,7 +1566,7 @@ export default function DraggableTransport({
 
             {/* Müşteri */}
             <div className="w-14 sm:w-16 md:w-20 shrink-0 mr-0">
-              <div className="text-[8px] sm:text-[10px] font-medium text-orange-600 truncate">
+              <div className={`text-[8px] sm:text-[10px] font-medium ${transport.hasTransportOrder ? "text-orange-600" : "text-gray-900"} truncate`}>
                 {transport.client.name}
               </div>
               <div className={`text-[7px] sm:text-[9px] ${
