@@ -13,14 +13,16 @@ export async function POST(request) {
     // Tarihi UTC'ye çevir ve timezone offset'ini hesaba kat
     const localDate = new Date(date);
     const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
-    console.log(`Creating ${slotCount} slot(s) for UTC date:`, utcDate);
+    // Tarihi 00:00 olarak ayarla
+    const startOfDayDate = startOfDay(utcDate);
+    console.log(`Creating ${slotCount} slot(s) for UTC date:`, startOfDayDate);
 
     // O tarihteki son slot'u bul
     const lastSlot = await prisma.planningSlot.findFirst({
       where: {
         date: {
-          gte: startOfDay(utcDate),
-          lt: endOfDay(utcDate)
+          gte: startOfDay(startOfDayDate),
+          lt: endOfDay(startOfDayDate)
         }
       },
       orderBy: {
@@ -37,7 +39,7 @@ export async function POST(request) {
     for (let i = 0; i < slotCount; i++) {
       const newSlot = await prisma.planningSlot.create({
         data: {
-          date: utcDate,
+          date: startOfDayDate,
           slotNumber: startSlotNumber + i,
           order: startOrder + i,
           isActive: true
@@ -74,8 +76,8 @@ export async function POST(request) {
     const allSlots = await prisma.planningSlot.findMany({
       where: {
         date: {
-          gte: startOfDay(utcDate),
-          lt: endOfDay(utcDate)
+          gte: startOfDay(startOfDayDate),
+          lt: endOfDay(startOfDayDate)
         }
       },
       include: {

@@ -2137,6 +2137,24 @@ export default function DraggableTransport({
                     )}
                   </Menu.Item>
 
+                  {/* Cancel Transport option */}
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowCancelModal(true);
+                        }}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } flex items-center gap-0.5 lg:gap-1 w-full px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-red-600`}
+                      >
+                        <FiAlertTriangle className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
+                        Cancel Transport
+                      </button>
+                    )}
+                  </Menu.Item>
+
                   {/* Hold/Activate option */}
                   <Menu.Item>
                     {({ active }) => (
@@ -2222,22 +2240,6 @@ export default function DraggableTransport({
                       >
                         <FiSend className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
                         {transport.sentToDriver ? 'Unassign from Driver' : 'Send to Driver'}
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowCancelModal(true);
-                        }}
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex items-center gap-0.5 lg:gap-1 w-full px-1 sm:px-1.5 lg:px-2 py-0.5 sm:py-1 lg:py-1 text-red-600`}
-                      >
-                        <FiAlertTriangle className="w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2.5 lg:h-2.5" />
-                        Cancel Transport
                       </button>
                     )}
                   </Menu.Item>
