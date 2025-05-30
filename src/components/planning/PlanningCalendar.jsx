@@ -15,8 +15,11 @@ const PlanningCalendar = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleDateClick = (arg) => {
+    const selected = arg.date;
+    const utcDate = new Date(Date.UTC(selected.getFullYear(), selected.getMonth(), selected.getDate(), 0, 0, 0, 0));
+    console.log("Takvimden seçilen gün (UTC 00:00):", utcDate, "ISO:", utcDate.toISOString());
     setIsLoading(true);
-    dispatch(setSelectedDate(arg.date.toISOString()));
+    dispatch(setSelectedDate(utcDate.toISOString()));
     dispatch(fetchPlanningData())
       .finally(() => {
         setIsLoading(false);
