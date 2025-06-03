@@ -18,7 +18,6 @@ export async function GET(request, { params }) {
       select: {
         id: true,
         name: true,
-        city: true,
         country: true,
       },
       orderBy: {

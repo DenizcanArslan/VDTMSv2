@@ -120,7 +120,7 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
       
       // Kullanıcıya bağlantı koptuğunu bildir
-      toast.warning('Canlı güncellemeler kesintiye uğradı, yeniden bağlanılıyor...', { autoClose: 3000 });
+      toast.warning('Live updates disconnected, reconnecting...', { autoClose: 3000 });
       
       // Disconnect nedeni transport kapanması ise, manuel olarak reconnect dene
       if (reason === 'transport close' || reason === 'ping timeout') {
@@ -145,7 +145,7 @@ export const SocketProvider = ({ children }) => {
         socketInstance.disconnect();
         
         // Kullanıcıya bildir
-        toast.error('Canlı güncellemelere bağlanılamadı. Lütfen sayfayı yenileyin.', { 
+        toast.error('Live updates connection failed, please refresh the page.', { 
           autoClose: false,
           closeOnClick: true 
         });
@@ -163,7 +163,7 @@ export const SocketProvider = ({ children }) => {
       console.log(`Socket.IO reconnected after ${attemptNumber} attempts`);
       
       // Kullanıcıya bildir
-      toast.success('Canlı güncellemeler yeniden etkinleştirildi', { autoClose: 2000 });
+      toast.success('Live updates re-enabled', { autoClose: 2000 });
       
       // Reconnect olduktan sonra tekrar abone ol
       if (socketInstance.connected) {

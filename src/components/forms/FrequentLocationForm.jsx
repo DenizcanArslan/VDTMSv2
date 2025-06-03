@@ -25,7 +25,6 @@ const FrequentLocationForm = ({ type, data, setOpen }) => {
     resolver: zodResolver(frequentLocationSchema),
     defaultValues: {
       name: data?.name || "",
-      city: data?.city || "",
       country: data?.country || "",
       postalCode: data?.postalCode || "",
       km: data?.km?.toString() || "",
@@ -91,18 +90,6 @@ const FrequentLocationForm = ({ type, data, setOpen }) => {
         </div>
 
         <div className="w-[calc(50%-12px)]">
-          <label className="block text-sm font-medium text-gray-700">City</label>
-          <input
-            type="text"
-            {...register("city")}
-            className={inputClassName}
-          />
-          {errors.city && (
-            <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
-          )}
-        </div>
-
-        <div className="w-[calc(50%-12px)] relative">
           <label className="block text-sm font-medium text-gray-700">Country *</label>
           <input
             type="text"

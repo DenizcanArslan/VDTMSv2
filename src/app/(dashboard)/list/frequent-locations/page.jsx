@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
 
 const columns = [
   { header: "Name", accessor: "name" },
-  { header: "City", accessor: "city", className: "hidden lg:table-cell" },
   { header: "Country", accessor: "country" },
   { header: "KM", accessor: "km" },
   { header: "Actions", accessor: "actions" },
@@ -23,7 +22,6 @@ const renderRow = (item, role) => (
     className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-dijle-dark-blue hover:text-white transition-colors duration-200"
   >
     <td className="p-4 font-semibold">{item.name}</td>
-    <td className="p-4 hidden lg:table-cell">{item.city || "-"}</td>
     <td className="p-4">{item.country}</td>
     <td className="p-4">{item.km}</td>
     <td className="p-4 w-[100px] lg:w-[130px]">
@@ -51,7 +49,6 @@ const FrequentLocationsListPage = async ({ searchParams }) => {
           case "search":
             query.OR = [
               { name: { contains: value, mode: "insensitive" } },
-              { city: { contains: value, mode: "insensitive" } },
               { country: { contains: value, mode: "insensitive" } },
             ];
             break;

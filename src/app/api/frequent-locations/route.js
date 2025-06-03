@@ -39,7 +39,6 @@ export async function POST(request) {
     const newLocation = await prisma.frequentLocation.create({
       data: {
         name: data.name,
-        city: data.city || null,
         country: data.country,
         postalCode: data.postalCode || null,
         km: parseInt(data.km),

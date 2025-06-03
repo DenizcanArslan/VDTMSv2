@@ -100,7 +100,6 @@ model Quay {
 model FrequentLocation {
   id                    Int                    @id @default(autoincrement())
   name                  String
-  city                  String?
   country               String
   postalCode            String?
   km                    Int

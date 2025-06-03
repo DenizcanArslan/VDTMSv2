@@ -19,7 +19,6 @@ export async function PUT(request, { params }) {
       where: { id: parseInt(params.id) },
       data: {
         name: data.name,
-        city: data.city || null,
         country: data.country,
         postalCode: data.postalCode || null,
         km: parseInt(data.km),
